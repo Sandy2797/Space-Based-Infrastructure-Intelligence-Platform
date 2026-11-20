@@ -1,22 +1,16 @@
-
-from datetime import datetime, timezone
-
 import numpy as np
 import rasterio
-
 from fastapi.testclient import TestClient
 from rasterio.transform import from_origin
-
 from app.main import app
-from app.api.images import mock_images
 from app.services.image_registration import prepare_image_registration
+from datetime import datetime, timezone
 
 
 client = TestClient(app)
 
 
 def test_prepare_and_register_image(tmp_path):
-    mock_images.clear()
 
     # Create a temporary synthetic GeoTIFF.
     image_path = tmp_path / "synthetic.tif"
@@ -70,4 +64,3 @@ def test_prepare_and_register_image(tmp_path):
     assert response.json()["width"] == 10
     assert response.json()["band_count"] == 1
 
-    mock_images.clear()

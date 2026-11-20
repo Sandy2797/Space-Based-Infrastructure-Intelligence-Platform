@@ -1,12 +1,8 @@
-
 import pytest
 
 from fastapi.testclient import TestClient
-
 from app.main import app
-
 from app.api.detections import mock_detections
-from app.api.images import mock_images
 
 
 client = TestClient(app)
@@ -15,12 +11,10 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def clear_mock_data():
     mock_detections.clear()
-    mock_images.clear()
 
     yield
 
     mock_detections.clear()
-    mock_images.clear()
 
 
 def sample_image(acquired_at, file_reference):

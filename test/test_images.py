@@ -1,20 +1,9 @@
-
-import pytest
-
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.api.images import mock_images
 
 
 client = TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def clear_images():
-    mock_images.clear()
-    yield
-    mock_images.clear()
 
 
 def sample_image():
@@ -68,3 +57,30 @@ def test_invalid_image_dimensions():
     )
 
     assert response.status_code == 422
+
+
+def test_registered_image_is_retrievable():
+    registration = client.post(
+        "/api/v1/images",
+        json=sample_image(),
+    )
+
+    assert registration.status_code == 201
+
+    image_id = registration.json()["id"]
+
+    # The GET request uses a separate database session.
+    response = client.get(
+        f"/api/v1/images/{image_id}"
+    )
+
+    assert response.status_code == 200
+
+    saved_image = response.json()
+
+    assert saved_image["id"] == image_id
+    assert saved_image["width"] == 1024
+    assert saved_image["crs"] == "EPSG:4326"
+    assert saved_image["file_reference"] == (
+        "samples/image_before.tif"
+    )

@@ -1,10 +1,10 @@
-
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
-from app.api.images import mock_images
-
+from app.db.database import get_db
+from app.models.satellite_image import SatelliteImageDB
 from app.schemas.detection import (
     DetectionCreate,
     DetectionResponse,
@@ -17,6 +17,8 @@ router = APIRouter(
 )
 
 
+# Detection storage is still temporary.
+# We will migrate it to SQLite in the next milestone.
 mock_detections: list[DetectionResponse] = []
 
 
@@ -25,8 +27,10 @@ mock_detections: list[DetectionResponse] = []
     response_model=DetectionResponse,
     status_code=201,
 )
-def create_detection(detection: DetectionCreate):
-
+def create_detection(
+    detection: DetectionCreate,
+    db: Session = Depends(get_db),
+):
     # A detection must compare two different images.
     if detection.before_image_id == detection.after_image_id:
         raise HTTPException(
@@ -34,42 +38,35 @@ def create_detection(detection: DetectionCreate):
             detail="Before and after images must be different",
         )
 
-    # Collect registered image IDs.
-    registered_ids = {
-        image.id for image in mock_images
-    }
+    # Retrieve the before-image from the database.
+    before_image = db.get(
+        SatelliteImageDB,
+        detection.before_image_id,
+    )
 
-    # Verify the before-image.
-    if detection.before_image_id not in registered_ids:
+    if before_image is None:
         raise HTTPException(
             status_code=404,
             detail="Before-image not found",
         )
 
-    # Verify the after-image.
-    if detection.after_image_id not in registered_ids:
+    # Retrieve the after-image from the database.
+    after_image = db.get(
+        SatelliteImageDB,
+        detection.after_image_id,
+    )
+
+    if after_image is None:
         raise HTTPException(
             status_code=404,
             detail="After-image not found",
         )
 
-
-    # Retrieve the registered image records.
-    image_by_id = {
-        image.id: image
-        for image in mock_images
-    }
-
-    before_image = image_by_id[
-        detection.before_image_id
-    ]
-
-    after_image = image_by_id[
-        detection.after_image_id
-    ]
-
     # Both images must belong to the same monitoring area.
-    if before_image.monitoring_area_id != after_image.monitoring_area_id:
+    if (
+        before_image.monitoring_area_id
+        != after_image.monitoring_area_id
+    ):
         raise HTTPException(
             status_code=422,
             detail="Images belong to different monitoring areas",
@@ -88,7 +85,6 @@ def create_detection(detection: DetectionCreate):
             status_code=422,
             detail="Images have different coordinate reference systems",
         )
-
 
     # Create the detection.
     record = DetectionResponse(
