@@ -1,9 +1,12 @@
+from datetime import timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.models.detection import DetectionDB
 from app.models.satellite_image import SatelliteImageDB
 from app.schemas.detection import (
     DetectionCreate,
@@ -17,9 +20,27 @@ router = APIRouter(
 )
 
 
-# Detection storage is still temporary.
-# We will migrate it to SQLite in the next milestone.
-mock_detections: list[DetectionResponse] = []
+def to_detection_response(
+    record: DetectionDB,
+) -> DetectionResponse:
+    observed_at = record.observed_at
+
+    # SQLite may return UTC timestamps without timezone information.
+    if observed_at.tzinfo is None:
+        observed_at = observed_at.replace(
+            tzinfo=timezone.utc
+        )
+
+    return DetectionResponse(
+        id=record.id,
+        before_image_id=record.before_image_id,
+        after_image_id=record.after_image_id,
+        observed_at=observed_at,
+        geometry=record.geometry,
+        origin_category=record.origin_category,
+        confidence=record.confidence,
+        model_version=record.model_version,
+    )
 
 
 @router.post(
@@ -31,14 +52,13 @@ def create_detection(
     detection: DetectionCreate,
     db: Session = Depends(get_db),
 ):
-    # A detection must compare two different images.
+    # The images must be different.
     if detection.before_image_id == detection.after_image_id:
         raise HTTPException(
             status_code=422,
             detail="Before and after images must be different",
         )
 
-    # Retrieve the before-image from the database.
     before_image = db.get(
         SatelliteImageDB,
         detection.before_image_id,
@@ -50,7 +70,6 @@ def create_detection(
             detail="Before-image not found",
         )
 
-    # Retrieve the after-image from the database.
     after_image = db.get(
         SatelliteImageDB,
         detection.after_image_id,
@@ -79,27 +98,55 @@ def create_detection(
             detail="Before-image must be older than after-image",
         )
 
-    # Both images must have compatible CRS information.
+    # Both images must use the same coordinate reference system.
     if before_image.crs != after_image.crs:
         raise HTTPException(
             status_code=422,
             detail="Images have different coordinate reference systems",
         )
 
-    # Create the detection.
-    record = DetectionResponse(
+    # Require an explicit timezone for observation timestamps.
+    if detection.observed_at.tzinfo is None:
+        raise HTTPException(
+            status_code=422,
+            detail="observed_at must include timezone information",
+        )
+
+    record = DetectionDB(
         id=str(uuid4()),
-        **detection.model_dump(),
+        before_image_id=detection.before_image_id,
+        after_image_id=detection.after_image_id,
+        observed_at=detection.observed_at.astimezone(
+            timezone.utc
+        ),
+        geometry=detection.geometry.model_dump(),
+        origin_category=detection.origin_category,
+        confidence=detection.confidence,
+        model_version=detection.model_version,
     )
 
-    mock_detections.append(record)
+    db.add(record)
+    db.commit()
+    db.refresh(record)
 
-    return record
+    return to_detection_response(record)
 
 
 @router.get(
     "",
     response_model=list[DetectionResponse],
 )
-def get_detections():
-    return mock_detections
+def get_detections(
+    db: Session = Depends(get_db),
+):
+    records = db.scalars(
+        select(DetectionDB).order_by(
+            DetectionDB.observed_at,
+            DetectionDB.id,
+        )
+    ).all()
+
+    return [
+        to_detection_response(record)
+        for record in records
+    ]

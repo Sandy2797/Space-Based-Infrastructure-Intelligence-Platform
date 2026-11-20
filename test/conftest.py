@@ -2,7 +2,7 @@ import pytest
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-
+from app.models.detection import DetectionDB
 from app.db.database import Base, get_db
 from app.main import app
 from app.models.satellite_image import SatelliteImageDB
@@ -26,7 +26,7 @@ def isolated_database(tmp_path):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    yield
+    yield test_engine
 
     app.dependency_overrides.pop(get_db, None)
 

@@ -1,20 +1,11 @@
 import pytest
-
+from sqlalchemy.orm import Session
+from app.models.detection import DetectionDB
 from fastapi.testclient import TestClient
 from app.main import app
-from app.api.detections import mock_detections
 
 
 client = TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def clear_mock_data():
-    mock_detections.clear()
-
-    yield
-
-    mock_detections.clear()
 
 
 def sample_image(acquired_at, file_reference):
@@ -176,3 +167,39 @@ def test_incompatible_image_pairs(after_image_changes):
     )
 
     assert response.status_code == 422
+
+def test_detection_is_persisted_in_database(
+    isolated_database,
+):
+    before_id, after_id = register_two_images()
+
+    detection = sample_detection()
+    detection["before_image_id"] = before_id
+    detection["after_image_id"] = after_id
+
+    response = client.post(
+        "/api/v1/detections",
+        json=detection,
+    )
+
+    assert response.status_code == 201
+
+    detection_id = response.json()["id"]
+
+    # Query the database directly in a separate session.
+    with Session(isolated_database) as db:
+        saved = db.get(
+            DetectionDB,
+            detection_id,
+        )
+
+        assert saved is not None
+        assert saved.before_image_id == before_id
+        assert saved.after_image_id == after_id
+        assert saved.origin_category == "human_made"
+        assert saved.confidence == 0.87
+        assert saved.geometry["type"] == "Point"
+        assert saved.geometry["coordinates"] == [
+            31.2,
+            30.2,
+        ]
