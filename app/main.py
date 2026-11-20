@@ -1,4 +1,4 @@
-
+from app.api.images import router as images_router
 from fastapi import FastAPI
 
 from app.api.detections import router as detection_router
@@ -10,7 +10,7 @@ app = FastAPI(
 )
 
 app.include_router(detection_router)
-
+app.include_router(images_router)
 
 @app.get("/")
 def home():
