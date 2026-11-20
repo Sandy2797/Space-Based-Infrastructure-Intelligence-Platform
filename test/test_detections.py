@@ -134,3 +134,51 @@ def test_same_before_and_after_image():
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "after_image_changes",
+    [
+        {"monitoring_area_id": 2},
+        {"acquired_at": "2026-10-01T10:00:00Z"},
+        {"crs": "EPSG:3857"},
+    ],
+)
+def test_incompatible_image_pairs(after_image_changes):
+    before_data = sample_image(
+        "2026-11-01T10:00:00Z",
+        "samples/before.tif",
+    )
+
+    after_data = sample_image(
+        "2026-11-15T10:00:00Z",
+        "samples/after.tif",
+    )
+
+    # Apply one incompatible condition.
+    after_data.update(after_image_changes)
+
+    before_response = client.post(
+        "/api/v1/images",
+        json=before_data,
+    )
+
+    after_response = client.post(
+        "/api/v1/images",
+        json=after_data,
+    )
+
+    assert before_response.status_code == 201
+    assert after_response.status_code == 201
+
+    detection = sample_detection()
+
+    detection["before_image_id"] = before_response.json()["id"]
+    detection["after_image_id"] = after_response.json()["id"]
+
+    response = client.post(
+        "/api/v1/detections",
+        json=detection,
+    )
+
+    assert response.status_code == 422

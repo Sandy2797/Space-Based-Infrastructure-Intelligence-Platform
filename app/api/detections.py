@@ -53,6 +53,43 @@ def create_detection(detection: DetectionCreate):
             detail="After-image not found",
         )
 
+
+    # Retrieve the registered image records.
+    image_by_id = {
+        image.id: image
+        for image in mock_images
+    }
+
+    before_image = image_by_id[
+        detection.before_image_id
+    ]
+
+    after_image = image_by_id[
+        detection.after_image_id
+    ]
+
+    # Both images must belong to the same monitoring area.
+    if before_image.monitoring_area_id != after_image.monitoring_area_id:
+        raise HTTPException(
+            status_code=422,
+            detail="Images belong to different monitoring areas",
+        )
+
+    # The before-image must be older.
+    if before_image.acquired_at >= after_image.acquired_at:
+        raise HTTPException(
+            status_code=422,
+            detail="Before-image must be older than after-image",
+        )
+
+    # Both images must have compatible CRS information.
+    if before_image.crs != after_image.crs:
+        raise HTTPException(
+            status_code=422,
+            detail="Images have different coordinate reference systems",
+        )
+
+
     # Create the detection.
     record = DetectionResponse(
         id=str(uuid4()),
