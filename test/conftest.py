@@ -6,7 +6,7 @@ from app.models.detection import DetectionDB
 from app.db.database import Base, get_db
 from app.main import app
 from app.models.satellite_image import SatelliteImageDB
-
+from app.models.monitoring_area import MonitoringAreaDB
 
 @pytest.fixture(autouse=True)
 def isolated_database(tmp_path):
