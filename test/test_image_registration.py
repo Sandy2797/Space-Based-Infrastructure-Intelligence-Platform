@@ -63,4 +63,3 @@ def test_prepare_and_register_image(tmp_path):
     assert response.status_code == 201
     assert response.json()["width"] == 10
     assert response.json()["band_count"] == 1
-

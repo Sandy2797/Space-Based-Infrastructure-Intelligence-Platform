@@ -1,5 +1,6 @@
 import os
-
+from collections.abc import Generator
+from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -20,3 +21,7 @@ SessionLocal = sessionmaker(
 
 class Base(DeclarativeBase):
     pass
+
+def get_db() -> Generator[Session, None, None]:
+    with SessionLocal() as db:
+        yield db
