@@ -1,7 +1,7 @@
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal
 from uuid import uuid4
-
+from app.db.spatial import from_storage, to_storage
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -37,7 +37,7 @@ def to_detection_response(
         before_image_id=record.before_image_id,
         after_image_id=record.after_image_id,
         observed_at=observed_at,
-        geometry=record.geometry,
+        geometry=from_storage(record.geometry),
         origin_category=record.origin_category,
         confidence=record.confidence,
         model_version=record.model_version,
@@ -120,7 +120,10 @@ def create_detection(
         observed_at=detection.observed_at.astimezone(
             timezone.utc
         ),
-        geometry=detection.geometry.model_dump(),
+        geometry=to_storage(
+    detection.geometry.model_dump(),
+    db,
+),
         origin_category=detection.origin_category,
         confidence=detection.confidence,
         model_version=detection.model_version,

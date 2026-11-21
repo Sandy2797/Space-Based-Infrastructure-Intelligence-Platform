@@ -1,7 +1,8 @@
-from sqlalchemy import JSON, String
+from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
+from app.db.spatial import geojson_column
 
 
 class MonitoringAreaDB(Base):
@@ -23,6 +24,6 @@ class MonitoringAreaDB(Base):
     )
 
     geometry: Mapped[dict] = mapped_column(
-        JSON,
+        geojson_column(),
         nullable=False,
     )

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-
+from app.db.spatial import from_storage, to_storage
 from app.db.database import get_db
 from app.models.monitoring_area import MonitoringAreaDB
 from app.schemas.monitoring_area import (
@@ -23,7 +23,7 @@ def to_area_response(
         id=record.id,
         name=record.name,
         crs=record.crs,
-        geometry=record.geometry,
+        geometry=from_storage(record.geometry),
     )
 
 
@@ -37,8 +37,10 @@ def create_monitoring_area(
     db: Session = Depends(get_db),
 ):
     record = MonitoringAreaDB(
-        **area.model_dump()
-    )
+    name=area.name,
+    crs=area.crs,
+    geometry=to_storage(area.geometry, db),
+)
 
     db.add(record)
     db.commit()

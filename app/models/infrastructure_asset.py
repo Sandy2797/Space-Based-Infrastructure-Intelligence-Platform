@@ -1,8 +1,8 @@
-
-from sqlalchemy import ForeignKey, JSON, String
+from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
+from app.db.spatial import geojson_column
 
 
 class InfrastructureAssetDB(Base):
@@ -33,6 +33,6 @@ class InfrastructureAssetDB(Base):
     )
 
     location: Mapped[dict] = mapped_column(
-        JSON,
+        geojson_column(),
         nullable=False,
     )

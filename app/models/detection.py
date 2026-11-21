@@ -1,5 +1,5 @@
 from datetime import datetime
-
+from app.db.spatial import geojson_column
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -47,9 +47,9 @@ class DetectionDB(Base):
     )
 
     geometry: Mapped[dict] = mapped_column(
-        JSON,
-        nullable=False,
-    )
+    geojson_column("POINT"),
+    nullable=False,
+)
 
     origin_category: Mapped[str] = mapped_column(
         String(30),

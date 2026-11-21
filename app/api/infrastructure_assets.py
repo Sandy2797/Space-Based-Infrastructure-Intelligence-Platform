@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from shapely.geometry import box, shape
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-
+from app.db.spatial import from_storage, to_storage
 from app.db.database import get_db
 from app.models.infrastructure_asset import InfrastructureAssetDB
 from app.models.monitoring_area import MonitoringAreaDB
@@ -28,10 +28,15 @@ def to_asset_response(
         monitoring_area_id=record.monitoring_area_id,
         asset_name=record.asset_name,
         asset_type=record.asset_type,
-        location=record.location,
+        location=from_storage(record.location),
     )
 
 
+@router.post(
+    "",
+    response_model=InfrastructureAssetResponse,
+    status_code=201,
+)
 @router.post(
     "",
     response_model=InfrastructureAssetResponse,
@@ -52,20 +57,26 @@ def create_infrastructure_asset(
             detail="Monitoring area not found",
         )
 
-    area_geometry = shape(monitoring_area.geometry)
+    # Convert geometries for spatial validation.
+    area_geometry = shape(
+        from_storage(monitoring_area.geometry)
+    )
+
     asset_geometry = shape(asset.location)
 
+    # Ensure the asset is within its monitoring area.
     if not area_geometry.covers(asset_geometry):
         raise HTTPException(
             status_code=422,
             detail="Infrastructure asset must be inside its monitoring area",
         )
 
+    # Save the asset.
     record = InfrastructureAssetDB(
         monitoring_area_id=asset.monitoring_area_id,
         asset_name=asset.asset_name,
         asset_type=asset.asset_type,
-        location=asset.location,
+        location=to_storage(asset.location, db),
     )
 
     db.add(record)
@@ -169,7 +180,7 @@ def get_infrastructure_assets(
         records = [
             record
             for record in records
-            if shape(record.location).intersects(search_area)
+            if shape(from_storage(record.location)).intersects(search_area)
         ]
 
     return [
