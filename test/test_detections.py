@@ -1,16 +1,23 @@
+
 import pytest
+
 from sqlalchemy.orm import Session
-from app.models.detection import DetectionDB
 from fastapi.testclient import TestClient
+
 from app.main import app
+from app.models.detection import DetectionDB
 
 
 client = TestClient(app)
 
 
-def sample_image(acquired_at, file_reference):
+def sample_image(
+    acquired_at,
+    file_reference,
+    monitoring_area_id=1,
+):
     return {
-        "monitoring_area_id": 1,
+        "monitoring_area_id": monitoring_area_id,
         "provider": "synthetic_test_data",
         "file_reference": file_reference,
         "acquired_at": acquired_at,
@@ -21,12 +28,14 @@ def sample_image(acquired_at, file_reference):
     }
 
 
-def register_two_images():
+def register_two_images(monitoring_area_id=1):
+
     before = client.post(
         "/api/v1/images",
         json=sample_image(
             "2026-11-01T10:00:00Z",
             "samples/before.tif",
+            monitoring_area_id,
         ),
     )
 
@@ -35,6 +44,7 @@ def register_two_images():
         json=sample_image(
             "2026-11-15T10:00:00Z",
             "samples/after.tif",
+            monitoring_area_id,
         ),
     )
 
@@ -59,8 +69,11 @@ def sample_detection():
     }
 
 
-def test_create_and_get_detection():
-    before_id, after_id = register_two_images()
+def test_create_and_get_detection(two_monitoring_areas):
+
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
 
     data = sample_detection()
     data["before_image_id"] = before_id
@@ -82,8 +95,9 @@ def test_create_and_get_detection():
     assert len(get_response.json()) == 1
 
 
-def test_invalid_confidence():
-    register_two_images()
+def test_invalid_confidence(two_monitoring_areas):
+
+    register_two_images(two_monitoring_areas[0])
 
     data = sample_detection()
     data["confidence"] = 1.5
@@ -97,6 +111,7 @@ def test_invalid_confidence():
 
 
 def test_missing_image_reference():
+
     data = sample_detection()
 
     response = client.post(
@@ -107,8 +122,9 @@ def test_missing_image_reference():
     assert response.status_code == 404
 
 
-def test_same_before_and_after_image():
-    register_two_images()
+def test_same_before_and_after_image(two_monitoring_areas):
+
+    register_two_images(two_monitoring_areas[0])
 
     data = sample_detection()
     data["after_image_id"] = data["before_image_id"]
@@ -129,19 +145,31 @@ def test_same_before_and_after_image():
         {"crs": "EPSG:3857"},
     ],
 )
-def test_incompatible_image_pairs(after_image_changes):
+def test_incompatible_image_pairs(
+    after_image_changes,
+    two_monitoring_areas,
+):
+
+    first_area_id, second_area_id = two_monitoring_areas
+
     before_data = sample_image(
         "2026-11-01T10:00:00Z",
         "samples/before.tif",
+        first_area_id,
     )
 
     after_data = sample_image(
         "2026-11-15T10:00:00Z",
         "samples/after.tif",
+        first_area_id,
     )
 
-    # Apply one incompatible condition.
-    after_data.update(after_image_changes)
+    changes = dict(after_image_changes)
+
+    if "monitoring_area_id" in changes:
+        changes["monitoring_area_id"] = second_area_id
+
+    after_data.update(changes)
 
     before_response = client.post(
         "/api/v1/images",
@@ -168,10 +196,15 @@ def test_incompatible_image_pairs(after_image_changes):
 
     assert response.status_code == 422
 
+
 def test_detection_is_persisted_in_database(
     isolated_database,
+    two_monitoring_areas,
 ):
-    before_id, after_id = register_two_images()
+
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
 
     detection = sample_detection()
     detection["before_image_id"] = before_id
@@ -186,8 +219,8 @@ def test_detection_is_persisted_in_database(
 
     detection_id = response.json()["id"]
 
-    # Query the database directly in a separate session.
     with Session(isolated_database) as db:
+
         saved = db.get(
             DetectionDB,
             detection_id,

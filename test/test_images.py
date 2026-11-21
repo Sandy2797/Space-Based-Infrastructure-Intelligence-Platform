@@ -1,3 +1,4 @@
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -6,9 +7,9 @@ from app.main import app
 client = TestClient(app)
 
 
-def sample_image():
+def sample_image(monitoring_area_id=1):
     return {
-        "monitoring_area_id": 1,
+        "monitoring_area_id": monitoring_area_id,
         "provider": "synthetic_test_data",
         "file_reference": "samples/image_before.tif",
         "acquired_at": "2026-11-01T10:00:00Z",
@@ -19,20 +20,20 @@ def sample_image():
     }
 
 
-def test_register_image():
+def test_register_image(monitoring_area):
     response = client.post(
         "/api/v1/images",
-        json=sample_image(),
+        json=sample_image(monitoring_area),
     )
 
     assert response.status_code == 201
     assert response.json()["id"] == 1
 
 
-def test_get_images():
+def test_get_images(monitoring_area):
     client.post(
         "/api/v1/images",
-        json=sample_image(),
+        json=sample_image(monitoring_area),
     )
 
     response = client.get("/api/v1/images")
@@ -59,17 +60,16 @@ def test_invalid_image_dimensions():
     assert response.status_code == 422
 
 
-def test_registered_image_is_retrievable():
+def test_registered_image_is_retrievable(monitoring_area):
     registration = client.post(
         "/api/v1/images",
-        json=sample_image(),
+        json=sample_image(monitoring_area),
     )
 
     assert registration.status_code == 201
 
     image_id = registration.json()["id"]
 
-    # The GET request uses a separate database session.
     response = client.get(
         f"/api/v1/images/{image_id}"
     )

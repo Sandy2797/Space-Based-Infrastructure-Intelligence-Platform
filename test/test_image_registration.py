@@ -10,8 +10,7 @@ from datetime import datetime, timezone
 client = TestClient(app)
 
 
-def test_prepare_and_register_image(tmp_path):
-
+def test_prepare_and_register_image(tmp_path, monitoring_area):
     # Create a temporary synthetic GeoTIFF.
     image_path = tmp_path / "synthetic.tif"
 
@@ -41,7 +40,7 @@ def test_prepare_and_register_image(tmp_path):
     # Extract metadata and prepare registration.
     registration = prepare_image_registration(
         file_path=image_path,
-        monitoring_area_id=1,
+        monitoring_area_id=monitoring_area,
         provider="synthetic_test_data",
         acquired_at=datetime(
             2026, 11, 20,

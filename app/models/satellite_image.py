@@ -1,6 +1,6 @@
-from datetime import datetime
+﻿from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
@@ -15,8 +15,13 @@ class SatelliteImageDB(Base):
     )
 
     monitoring_area_id: Mapped[int] = mapped_column(
-        Integer,
+        ForeignKey(
+            "monitoring_areas.id",
+            name="fk_satellite_images_monitoring_area_id_monitoring_areas",
+            ondelete="RESTRICT",
+        ),
         nullable=False,
+        index=True,
     )
 
     provider: Mapped[str] = mapped_column(
