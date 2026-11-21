@@ -2,6 +2,9 @@ from app.api.images import router as images_router
 from fastapi import FastAPI
 from app.api.monitoring_areas import router as monitoring_area_router
 from app.api.detections import router as detection_router
+from app.api.infrastructure_assets import (
+    router as infrastructure_assets_router,
+)
 
 app = FastAPI(
     title="Space-Based Infrastructure Intelligence Platform",
@@ -9,6 +12,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.include_router(infrastructure_assets_router)
 app.include_router(detection_router)
 app.include_router(images_router)
 app.include_router(monitoring_area_router)

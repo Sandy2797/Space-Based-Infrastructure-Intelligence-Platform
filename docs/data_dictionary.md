@@ -346,6 +346,66 @@ confidence >= 0 AND confidence <= 1
 
 
 
+### 3.4 InfrastructureAsset
+
+**Table name:** `infrastructure_assets`
+
+**SQLAlchemy model:** `InfrastructureAssetDB`
+
+**Purpose:** Stores infrastructure assets associated with monitoring areas, including their names, types, and geographic locations.
+
+| Field | Database Type | Constraint | Description |
+|---|---|---|---|
+| id | Integer | Primary Key, Auto Increment | Unique infrastructure asset identifier |
+| monitoring_area_id | Integer | Foreign Key, NOT NULL, Indexed | Associated monitoring area |
+| asset_name | VARCHAR(120) | NOT NULL | Infrastructure asset name |
+| asset_type | VARCHAR(80) | NOT NULL | Infrastructure category |
+| location | JSON | NOT NULL | Geographic location in GeoJSON format |
+
+**Foreign Key relationship:**
+
+- monitoring_area_id references monitoring_areas.id.
+- The foreign key uses ON DELETE RESTRICT.
+
+**Supported geometry types:**
+
+- Point
+- MultiPoint
+- LineString
+- MultiLineString
+- Polygon
+- MultiPolygon
+
+**API validation rules:**
+
+- Monitoring area identifier must be positive.
+- The referenced monitoring area must exist.
+- Asset name must not be empty and cannot exceed 120 characters.
+- Asset type must not be empty and cannot exceed 80 characters.
+- Geometry must use a supported GeoJSON type.
+- Geometry must not be empty or invalid.
+- Longitude must be between -180 and 180.
+- Latitude must be between -90 and 90.
+- The complete asset geometry must be covered by its monitoring area.
+- Asset coordinates must use a coordinate system compatible with the associated monitoring area.
+
+**API schemas:**
+
+- InfrastructureAssetCreate
+- InfrastructureAssetResponse
+
+**Implemented endpoints:**
+
+- POST /api/v1/infrastructure-assets
+- GET /api/v1/infrastructure-assets
+- GET /api/v1/infrastructure-assets/{asset_id}
+
+**GIS validation:**
+
+Shapely is used to validate geometry and check whether the complete asset geometry is covered by the associated monitoring area using the covers() operation.
+
+
+
 ## 4. Entity Relationships
 
 
@@ -355,6 +415,16 @@ confidence >= 0 AND confidence <= 1
 
 
 ```mermaid
+
+MONITORING_AREA ||--o{ INFRASTRUCTURE_ASSET : contains
+
+INFRASTRUCTURE_ASSET {
+    int id PK
+    int monitoring_area_id FK
+    string asset_name
+    string asset_type
+    json location
+}
 
 erDiagram
 
@@ -504,7 +574,6 @@ The following entities are part of the overall project architecture but are not 
 
 |---|---|---|
 
-| InfrastructureAsset | Stores monitored infrastructure assets | Sandy |
 
 | PermitRecord | Stores authorized permit information | Sandy / authorized data source |
 
@@ -548,8 +617,11 @@ Their final schemas and relationships must be agreed upon before implementation.
 
 | Monitoring area foreign key enforcement | Pending |
 
-| InfrastructureAsset model | Pending |
-
+| InfrastructureAsset model | Implemented |
+| InfrastructureAsset API schemas | Implemented |
+| InfrastructureAsset API endpoints | Implemented |
+| InfrastructureAsset foreign key | Implemented |
+| InfrastructureAsset GIS geometry validation | Implemented |
 | PostgreSQL integration | Pending |
 
 | PostGIS geometry storage | Pending |
@@ -570,7 +642,6 @@ The following improvements are planned:
 
 - Enforce the monitoring area foreign key.
 
-- Add InfrastructureAsset persistence and relationships.
 
 - Migrate the development database to PostgreSQL.
 

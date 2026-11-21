@@ -1,3 +1,4 @@
+from app.models.infrastructure_asset import InfrastructureAssetDB
 from app.db.database import Base, engine
 from app.models.satellite_image import SatelliteImageDB
 from app.models.detection import DetectionDB
