@@ -222,3 +222,100 @@ def test_create_road_using_linestring():
 
     assert response.status_code == 201
     assert response.json()["asset_type"] == "road"
+
+def test_filter_assets_by_monitoring_area():
+    first_area = create_monitoring_area()
+    second_area = create_monitoring_area()
+
+    client.post(
+        "/api/v1/infrastructure-assets",
+        json=sample_asset(first_area),
+    )
+
+    client.post(
+        "/api/v1/infrastructure-assets",
+        json=sample_asset(second_area),
+    )
+
+    response = client.get(
+        f"/api/v1/infrastructure-assets?monitoring_area_id={first_area}"
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["monitoring_area_id"] == first_area
+
+
+def test_filter_assets_by_type():
+    area_id = create_monitoring_area()
+
+    client.post(
+        "/api/v1/infrastructure-assets",
+        json=sample_asset(area_id),
+    )
+
+    road = sample_asset(area_id)
+    road["asset_name"] = "Test Road"
+    road["asset_type"] = "road"
+
+    client.post(
+        "/api/v1/infrastructure-assets",
+        json=road,
+    )
+
+    response = client.get(
+        "/api/v1/infrastructure-assets?asset_type=ROAD"
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["asset_type"] == "road"
+
+
+def test_filter_assets_by_bounding_box():
+    area_id = create_monitoring_area()
+
+    client.post(
+        "/api/v1/infrastructure-assets",
+        json=sample_asset(area_id),
+    )
+
+    second_location = {
+        "type": "Point",
+        "coordinates": [31.08, 30.08],
+    }
+
+    client.post(
+        "/api/v1/infrastructure-assets",
+        json=sample_asset(area_id, second_location),
+    )
+
+    response = client.get(
+        "/api/v1/infrastructure-assets",
+        params={
+            "bbox": "31.04,30.04,31.06,30.06"
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["asset_name"] == "Test Building"
+
+
+def test_reject_malformed_bounding_box():
+    response = client.get(
+        "/api/v1/infrastructure-assets?bbox=31,30,31.1"
+    )
+
+    assert response.status_code == 422
+
+
+def test_reject_invalid_bounding_box_coordinates():
+    response = client.get(
+        "/api/v1/infrastructure-assets",
+        params={
+            "bbox": "31.1,30,31.0,30.1"
+        },
+    )
+
+    assert response.status_code == 422

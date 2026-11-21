@@ -1,7 +1,8 @@
+﻿from math import isfinite
 
-from fastapi import APIRouter, Depends, HTTPException
-from shapely.geometry import shape
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query
+from shapely.geometry import box, shape
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -40,7 +41,6 @@ def create_infrastructure_asset(
     asset: InfrastructureAssetCreate,
     db: Session = Depends(get_db),
 ):
-    # Check that the monitoring area exists.
     monitoring_area = db.get(
         MonitoringAreaDB,
         asset.monitoring_area_id,
@@ -52,24 +52,15 @@ def create_infrastructure_asset(
             detail="Monitoring area not found",
         )
 
-    # Convert GeoJSON into Shapely geometries.
-    area_geometry = shape(
-        monitoring_area.geometry
-    )
+    area_geometry = shape(monitoring_area.geometry)
+    asset_geometry = shape(asset.location)
 
-    asset_geometry = shape(
-        asset.location
-    )
-
-    # Ensure the complete asset geometry is inside
-    # its assigned monitoring area.
     if not area_geometry.covers(asset_geometry):
         raise HTTPException(
             status_code=422,
             detail="Infrastructure asset must be inside its monitoring area",
         )
 
-    # Create the database record.
     record = InfrastructureAssetDB(
         monitoring_area_id=asset.monitoring_area_id,
         asset_name=asset.asset_name,
@@ -89,13 +80,97 @@ def create_infrastructure_asset(
     response_model=list[InfrastructureAssetResponse],
 )
 def get_infrastructure_assets(
+    monitoring_area_id: int | None = Query(
+        default=None,
+        gt=0,
+    ),
+    asset_type: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=80,
+    ),
+    bbox: str | None = Query(
+        default=None,
+        description="Bounding box: west,south,east,north",
+    ),
     db: Session = Depends(get_db),
 ):
-    records = db.scalars(
-        select(InfrastructureAssetDB).order_by(
-            InfrastructureAssetDB.id
+    statement = select(InfrastructureAssetDB)
+
+    # Filter by monitoring area.
+    if monitoring_area_id is not None:
+        statement = statement.where(
+            InfrastructureAssetDB.monitoring_area_id
+            == monitoring_area_id
         )
+
+    # Filter by asset type, ignoring letter case.
+    if asset_type is not None:
+        normalized_type = asset_type.strip()
+
+        if not normalized_type:
+            raise HTTPException(
+                status_code=422,
+                detail="Asset type cannot be empty",
+            )
+
+        statement = statement.where(
+            func.lower(InfrastructureAssetDB.asset_type)
+            == normalized_type.lower()
+        )
+
+    records = db.scalars(
+        statement.order_by(InfrastructureAssetDB.id)
     ).all()
+
+    # Apply geographic bounding-box filtering.
+    if bbox is not None:
+        try:
+            coordinates = [
+                float(value.strip())
+                for value in bbox.split(",")
+            ]
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid bbox. Use west,south,east,north",
+            ) from exc
+
+        if len(coordinates) != 4:
+            raise HTTPException(
+                status_code=422,
+                detail="bbox must contain exactly four coordinates",
+            )
+
+        west, south, east, north = coordinates
+
+        if not all(isfinite(value) for value in coordinates):
+            raise HTTPException(
+                status_code=422,
+                detail="Bounding box coordinates must be finite",
+            )
+
+        if not (
+            -180 <= west < east <= 180
+            and -90 <= south < north <= 90
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid geographic bounding box",
+            )
+
+        search_area = box(
+            west,
+            south,
+            east,
+            north,
+        )
+
+        records = [
+            record
+            for record in records
+            if shape(record.location).intersects(search_area)
+        ]
 
     return [
         to_asset_response(record)
