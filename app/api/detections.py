@@ -1,7 +1,8 @@
-from datetime import timezone
+from datetime import date, datetime, time, timedelta, timezone
+from typing import Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -137,10 +138,100 @@ def create_detection(
     response_model=list[DetectionResponse],
 )
 def get_detections(
+    monitoring_area_id: int | None = Query(default=None, gt=0),
+    origin_category: Literal[
+        "human_made",
+        "natural",
+        "uncertain",
+    ] | None = None,
+    min_confidence: float | None = Query(
+        default=None, ge=0, le=1
+    ),
+    max_confidence: float | None = Query(
+        default=None, ge=0, le=1
+    ),
+    start_date: date | None = None,
+    end_date: date | None = None,
     db: Session = Depends(get_db),
 ):
+    # Validate confidence range.
+    if (
+        min_confidence is not None
+        and max_confidence is not None
+        and min_confidence > max_confidence
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Minimum confidence cannot exceed maximum confidence",
+        )
+
+    # Validate date range.
+    if (
+        start_date is not None
+        and end_date is not None
+        and start_date > end_date
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Start date cannot be after end date",
+        )
+
+    statement = (
+        select(DetectionDB)
+        .join(
+            SatelliteImageDB,
+            DetectionDB.before_image_id == SatelliteImageDB.id,
+        )
+    )
+
+    # Filter by monitoring area.
+    if monitoring_area_id is not None:
+        statement = statement.where(
+            SatelliteImageDB.monitoring_area_id
+            == monitoring_area_id
+        )
+
+    # Filter by detection category.
+    if origin_category is not None:
+        statement = statement.where(
+            DetectionDB.origin_category == origin_category
+        )
+
+    # Filter by minimum confidence.
+    if min_confidence is not None:
+        statement = statement.where(
+            DetectionDB.confidence >= min_confidence
+        )
+
+    # Filter by maximum confidence.
+    if max_confidence is not None:
+        statement = statement.where(
+            DetectionDB.confidence <= max_confidence
+        )
+
+    # Dates are interpreted as UTC.
+    if start_date is not None:
+        start_datetime = datetime.combine(
+            start_date,
+            time.min,
+            tzinfo=timezone.utc,
+        )
+        statement = statement.where(
+            DetectionDB.observed_at >= start_datetime
+        )
+
+    if end_date is not None:
+        end_datetime = datetime.combine(
+            end_date + timedelta(days=1),
+            time.min,
+            tzinfo=timezone.utc,
+        )
+        statement = statement.where(
+            DetectionDB.observed_at < end_datetime
+        )
+
     records = db.scalars(
-        select(DetectionDB).order_by(
+        statement.order_by(
             DetectionDB.observed_at,
             DetectionDB.id,
         )

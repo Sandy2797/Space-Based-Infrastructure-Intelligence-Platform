@@ -236,3 +236,138 @@ def test_detection_is_persisted_in_database(
             31.2,
             30.2,
         ]
+
+
+def create_detection_for_filters(
+    monitoring_area_id,
+    category="human_made",
+    confidence=0.87,
+    observed_at="2026-11-20T10:00:00Z",
+):
+    before_id, after_id = register_two_images(
+        monitoring_area_id
+    )
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = after_id
+    data["origin_category"] = category
+    data["confidence"] = confidence
+    data["observed_at"] = observed_at
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 201, response.text
+
+    return response.json()
+
+
+def test_filter_by_monitoring_area(two_monitoring_areas):
+    first_area, second_area = two_monitoring_areas
+
+    create_detection_for_filters(first_area)
+    create_detection_for_filters(second_area, category="natural")
+
+    response = client.get(
+        "/api/v1/detections",
+        params={"monitoring_area_id": first_area},
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_filter_by_category(two_monitoring_areas):
+    area_id = two_monitoring_areas[0]
+
+    create_detection_for_filters(area_id)
+    create_detection_for_filters(
+        area_id,
+        category="natural",
+    )
+
+    response = client.get(
+        "/api/v1/detections",
+        params={"origin_category": "natural"},
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["origin_category"] == "natural"
+
+
+def test_filter_by_confidence_range(two_monitoring_areas):
+    area_id = two_monitoring_areas[0]
+
+    create_detection_for_filters(area_id, confidence=0.4)
+    create_detection_for_filters(area_id, confidence=0.75)
+    create_detection_for_filters(area_id, confidence=0.95)
+
+    response = client.get(
+        "/api/v1/detections",
+        params={
+            "min_confidence": 0.7,
+            "max_confidence": 0.8,
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["confidence"] == 0.75
+
+
+def test_filter_by_date_range(two_monitoring_areas):
+    area_id = two_monitoring_areas[0]
+
+    create_detection_for_filters(
+        area_id,
+        observed_at="2026-11-19T10:00:00Z",
+    )
+
+    create_detection_for_filters(
+        area_id,
+        observed_at="2026-11-20T10:00:00Z",
+    )
+
+    create_detection_for_filters(
+        area_id,
+        observed_at="2026-11-21T10:00:00Z",
+    )
+
+    response = client.get(
+        "/api/v1/detections",
+        params={
+            "start_date": "2026-11-20",
+            "end_date": "2026-11-20",
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_reject_invalid_confidence_range():
+    response = client.get(
+        "/api/v1/detections",
+        params={
+            "min_confidence": 0.9,
+            "max_confidence": 0.2,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_reject_invalid_date_range():
+    response = client.get(
+        "/api/v1/detections",
+        params={
+            "start_date": "2026-11-25",
+            "end_date": "2026-11-20",
+        },
+    )
+
+    assert response.status_code == 422
