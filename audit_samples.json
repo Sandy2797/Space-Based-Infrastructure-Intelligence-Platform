@@ -1,0 +1,153 @@
+{
+  "_note": "MOCK sample audit records for design review. Not real data.",
+  "events": [
+    {
+      "event_id": "00000000-0000-4000-8000-000000000001",
+      "actor_id": null,
+      "action": "auth.login_failure",
+      "resource_type": "user",
+      "resource_id": "attempted:analyst02",
+      "timestamp": "2026-11-24T08:58:00Z",
+      "outcome": "failure",
+      "correlation_id": "req-0001",
+      "metadata": {
+        "reason": "bad_credentials"
+      }
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000002",
+      "actor_id": "user-analyst-02",
+      "action": "auth.login_success",
+      "resource_type": "user",
+      "resource_id": "user-analyst-02",
+      "timestamp": "2026-11-24T09:00:00Z",
+      "outcome": "success",
+      "correlation_id": "req-0002",
+      "metadata": {}
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000003",
+      "actor_id": "user-admin-01",
+      "action": "user.permission_changed",
+      "resource_type": "user",
+      "resource_id": "user-analyst-03",
+      "timestamp": "2026-11-24T09:02:00Z",
+      "outcome": "success",
+      "correlation_id": "req-0003",
+      "metadata": {
+        "old_role": "viewer",
+        "new_role": "analyst"
+      }
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000004",
+      "actor_id": "system",
+      "action": "integrity.mismatch_detected",
+      "resource_type": "image",
+      "resource_id": "IMG-0005",
+      "timestamp": "2026-11-24T09:03:00Z",
+      "outcome": "failure",
+      "correlation_id": "req-0004",
+      "metadata": {
+        "check": "sha256"
+      }
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000005",
+      "actor_id": "user-analyst-01",
+      "action": "image.registered",
+      "resource_type": "image",
+      "resource_id": "IMG-0001",
+      "timestamp": "2026-11-24T09:05:00Z",
+      "outcome": "success",
+      "correlation_id": "req-0005",
+      "metadata": {
+        "source": "approved_sample"
+      }
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000006",
+      "actor_id": "system",
+      "action": "detection.created",
+      "resource_type": "detection",
+      "resource_id": "DET-0001",
+      "timestamp": "2026-11-24T09:06:00Z",
+      "outcome": "success",
+      "correlation_id": "req-0006",
+      "metadata": {
+        "model_version": "mock-0.1",
+        "confidence": 0.62
+      }
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000007",
+      "actor_id": "user-analyst-02",
+      "action": "permit.record_accessed",
+      "resource_type": "permit_record",
+      "resource_id": "PERMIT-0042",
+      "timestamp": "2026-11-24T09:08:00Z",
+      "outcome": "success",
+      "correlation_id": "req-0007",
+      "metadata": {
+        "verification_status": "no_record"
+      }
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000008",
+      "actor_id": "system",
+      "action": "recommendation.created",
+      "resource_type": "recommendation",
+      "resource_id": "REC-0001",
+      "timestamp": "2026-11-24T09:10:00Z",
+      "outcome": "success",
+      "correlation_id": "req-0008",
+      "metadata": {
+        "policy": "nbve-mock"
+      }
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000009",
+      "actor_id": "user-analyst-02",
+      "action": "review.decision_submitted",
+      "resource_type": "verification_case",
+      "resource_id": "CASE-0001",
+      "timestamp": "2026-11-24T09:15:00Z",
+      "outcome": "success",
+      "correlation_id": "req-0009",
+      "metadata": {
+        "decision": "rejected",
+        "review_version": 1,
+        "comment_length": 62
+      }
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000010",
+      "actor_id": "system",
+      "action": "review.conflict_opened",
+      "resource_type": "verification_case",
+      "resource_id": "CASE-0001",
+      "timestamp": "2026-11-24T09:30:00Z",
+      "outcome": "success",
+      "correlation_id": "req-0010",
+      "metadata": {
+        "decisions": [
+          "rejected",
+          "confirmed"
+        ]
+      }
+    },
+    {
+      "event_id": "00000000-0000-4000-8000-000000000011",
+      "actor_id": "user-supervisor-01",
+      "action": "review.adjudicated",
+      "resource_type": "verification_case",
+      "resource_id": "CASE-0001",
+      "timestamp": "2026-11-24T09:45:00Z",
+      "outcome": "success",
+      "correlation_id": "req-0011",
+      "metadata": {
+        "final_decision": "rejected"
+      }
+    }
+  ]
+}

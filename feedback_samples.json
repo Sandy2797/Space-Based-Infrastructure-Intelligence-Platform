@@ -1,0 +1,125 @@
+{
+  "_note": "MOCK sample payloads for design review. Not real data. reviewer_id/submitted_at/feedback_id are server-set and must never appear in a request body.",
+  "valid": [
+    {
+      "name": "reject_with_comment",
+      "request": {
+        "verification_case_id": "CASE-0001",
+        "decision": "rejected",
+        "comments": "Image shows seasonal vegetation change, not construction."
+      }
+    },
+    {
+      "name": "confirm_minimal",
+      "request": {
+        "detection_id": "DET-0001",
+        "decision": "confirmed"
+      }
+    },
+    {
+      "name": "needs_info",
+      "request": {
+        "verification_case_id": "CASE-0002",
+        "decision": "needs_more_information",
+        "comments": "Need a second image from a clearer date."
+      }
+    },
+    {
+      "name": "insufficient_evidence_with_evidence_ref",
+      "request": {
+        "verification_case_id": "CASE-0003",
+        "decision": "insufficient_evidence",
+        "comments": "Cloud cover over the whole area.",
+        "evidence_reference": "EVID-0007"
+      }
+    }
+  ],
+  "stored_record_example": {
+    "feedback_id": "3f6c1b7e-5a2d-4c88-b0a1-9d2e7f4a1c10",
+    "verification_case_id": "CASE-0001",
+    "detection_id": "DET-0001",
+    "reviewer_id": "user-analyst-02",
+    "decision": "rejected",
+    "comments": "Image shows seasonal vegetation change, not construction.",
+    "submitted_at": "2026-11-24T09:15:00Z",
+    "evidence_reference": null,
+    "review_version": 1,
+    "adjudication_status": "none"
+  },
+  "invalid": [
+    {
+      "name": "client_supplied_reviewer",
+      "request": {
+        "verification_case_id": "CASE-0001",
+        "decision": "confirmed",
+        "reviewer_id": "user-admin-01"
+      },
+      "expected_status": 422
+    },
+    {
+      "name": "no_case_or_detection",
+      "request": {
+        "decision": "confirmed"
+      },
+      "expected_status": 422
+    },
+    {
+      "name": "unknown_case",
+      "request": {
+        "verification_case_id": "CASE-9999",
+        "decision": "confirmed"
+      },
+      "expected_status": 404
+    },
+    {
+      "name": "invalid_decision",
+      "request": {
+        "verification_case_id": "CASE-0001",
+        "decision": "maybe"
+      },
+      "expected_status": 422
+    },
+    {
+      "name": "pending_not_submittable",
+      "request": {
+        "verification_case_id": "CASE-0001",
+        "decision": "pending"
+      },
+      "expected_status": 422
+    },
+    {
+      "name": "rejected_without_comment",
+      "request": {
+        "verification_case_id": "CASE-0001",
+        "decision": "rejected"
+      },
+      "expected_status": 422
+    },
+    {
+      "name": "comment_too_long",
+      "request": {
+        "verification_case_id": "CASE-0001",
+        "decision": "rejected",
+        "comments": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "expected_status": 422
+    },
+    {
+      "name": "closed_case",
+      "request": {
+        "verification_case_id": "CASE-0004",
+        "decision": "confirmed"
+      },
+      "expected_status": 409
+    },
+    {
+      "name": "unauthorized_role",
+      "request": {
+        "verification_case_id": "CASE-0001",
+        "decision": "confirmed"
+      },
+      "as_role": "viewer",
+      "expected_status": 403
+    }
+  ]
+}
