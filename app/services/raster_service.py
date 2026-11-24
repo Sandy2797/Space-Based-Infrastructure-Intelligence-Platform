@@ -1,6 +1,6 @@
 
 from pathlib import Path
-
+from rasterio.warp import transform_bounds
 import rasterio
 
 
@@ -45,6 +45,24 @@ def read_image_metadata(file_path: str | Path) -> dict:
                 else None
             ),
             "nodata": image.nodata,
+            "transform": list(image.transform)[:6],
         }
+
+        # Convert geographic bounds to EPSG:4326.
+        if image.crs:
+            west, south, east, north = transform_bounds(
+                image.crs,
+                "EPSG:4326",
+                *image.bounds,
+            )
+
+            metadata["bounds_wgs84"] = {
+                "left": west,
+                "bottom": south,
+                "right": east,
+                "top": north,
+            }
+        else:
+            metadata["bounds_wgs84"] = None
 
     return metadata
