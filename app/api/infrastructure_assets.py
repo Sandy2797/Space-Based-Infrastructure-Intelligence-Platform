@@ -31,12 +31,6 @@ def to_asset_response(
         location=from_storage(record.location),
     )
 
-
-@router.post(
-    "",
-    response_model=InfrastructureAssetResponse,
-    status_code=201,
-)
 @router.post(
     "",
     response_model=InfrastructureAssetResponse,
@@ -115,7 +109,7 @@ def get_infrastructure_assets(
             == monitoring_area_id
         )
 
-    # Filter by asset type, ignoring letter case.
+    # Filter by asset type.
     if asset_type is not None:
         normalized_type = asset_type.strip()
 
@@ -130,11 +124,9 @@ def get_infrastructure_assets(
             == normalized_type.lower()
         )
 
-    records = db.scalars(
-        statement.order_by(InfrastructureAssetDB.id)
-    ).all()
+    search_area = None
 
-    # Apply geographic bounding-box filtering.
+    # Validate bounding-box coordinates.
     if bbox is not None:
         try:
             coordinates = [
@@ -170,17 +162,43 @@ def get_infrastructure_assets(
                 detail="Invalid geographic bounding box",
             )
 
-        search_area = box(
-            west,
-            south,
-            east,
-            north,
-        )
+        # PostgreSQL: filter directly using PostGIS.
+        if db.get_bind().dialect.name == "postgresql":
+            statement = statement.where(
+                func.ST_Intersects(
+                    InfrastructureAssetDB.location,
+                    func.ST_MakeEnvelope(
+                        west,
+                        south,
+                        east,
+                        north,
+                        4326,
+                    ),
+                )
+            )
 
+        # SQLite: retain Shapely filtering.
+        else:
+            search_area = box(
+                west,
+                south,
+                east,
+                north,
+            )
+
+    # Execute database query after applying SQL filters.
+    records = db.scalars(
+        statement.order_by(InfrastructureAssetDB.id)
+    ).all()
+
+    # Apply Shapely filtering for SQLite.
+    if search_area is not None:
         records = [
             record
             for record in records
-            if shape(from_storage(record.location)).intersects(search_area)
+            if shape(
+                from_storage(record.location)
+            ).intersects(search_area)
         ]
 
     return [
