@@ -371,3 +371,85 @@ def test_reject_invalid_date_range():
     )
 
     assert response.status_code == 422
+
+
+def test_missing_after_image_reference(two_monitoring_areas):
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = 999999
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "After-image not found"
+
+
+def test_reject_timestamp_without_timezone(two_monitoring_areas):
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = after_id
+    data["observed_at"] = "2026-11-20T10:00:00"
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "observed_at must include timezone information"
+    )
+
+
+@pytest.mark.parametrize(
+    "geometry",
+    [
+        {
+            "type": "Polygon",
+            "coordinates": [[
+                [31.0, 30.0],
+                [31.1, 30.0],
+                [31.1, 30.1],
+                [31.0, 30.0],
+            ]],
+        },
+        {
+            "type": "Point",
+            "coordinates": [31.2],
+        },
+        {
+            "type": "Point",
+            "coordinates": [31.2, 30.2, 5],
+        },
+    ],
+)
+def test_reject_invalid_point_geometry(
+    geometry,
+    two_monitoring_areas,
+):
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = after_id
+    data["geometry"] = geometry
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 422
