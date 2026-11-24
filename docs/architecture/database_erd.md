@@ -30,8 +30,8 @@ erDiagram
     MONITORING_AREA {
         int id PK
         string name
-        geometry boundary
-        string source
+        string crs
+        geometry geometry
     }
 
     SATELLITE_IMAGE {
@@ -55,24 +55,53 @@ erDiagram
     }
 
     DETECTION {
-        int id PK
+        string id PK
         int before_image_id FK
         int after_image_id FK
-        geometry footprint
+        datetime observed_at
+        geometry geometry
         string origin_category
         float confidence
-        datetime detected_at
         string model_version
     }
 ```
+
+## Geographic Data Storage
+
+The backend supports PostgreSQL with PostGIS
+for native geographic geometry storage.
+
+| Entity | Geometry column | PostgreSQL type |
+|---|---|---|
+| MonitoringArea | geometry | GEOMETRY (SRID 4326) |
+| InfrastructureAsset | location | GEOMETRY (SRID 4326) |
+| Detection | geometry | POINT (SRID 4326) |
+
+SQLite remains supported for local development
+and automated testing, using JSON geometry storage.
+
+The API exchanges geographic information using GeoJSON.
+
+## Spatial Indexes
+
+Three GiST spatial indexes have been implemented
+and verified in PostgreSQL:
+
+- monitoring_areas.geometry
+- infrastructure_assets.location
+- detections.geometry
+
+These indexes support efficient geographic queries.
 
 ## Data Design Rules
 
 - Every entity has a unique identifier.
 - Satellite images reference their monitoring area.
-- Detections reference the before and after images.
-- Geographic features use PostGIS geometry fields.
-- Coordinate reference systems must be documented.
+- Infrastructure assets reference their monitoring area.
+- Detections reference before and after satellite images.
+- Geographic features use EPSG:4326.
+- PostgreSQL uses native PostGIS geometry storage.
+- SQLite uses JSON geometry storage.
 - Confidence scores range from 0 to 1.
 - Original satellite files are referenced, not modified.
 - Restricted data must not be committed to GitHub.
@@ -90,4 +119,5 @@ The design will later include:
 
 Their schemas must be agreed with the responsible
 members before implementation.
-```
+
+Production deployment configuration remains pending.

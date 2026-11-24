@@ -73,7 +73,8 @@ The planned storage structure includes:
 - Forecast and verification case records.
 - User feedback and audit events.
 
-PostgreSQL with PostGIS is the intended production spatial database. SQLite is currently used for local development and testing.
+The backend currently supports PostgreSQL with PostGIS for spatial data storage and querying. This implementation has been tested against a local Docker PostgreSQL/PostGIS instance. SQLite remains supported for local testing. Production deployment configuration is still pending.
+
 
 Original satellite imagery must remain unchanged. Large raster files should not be stored directly in ordinary database rows.
 
@@ -124,7 +125,7 @@ The current backend implementation includes:
 
 The following components remain planned or dependent on integration:
 
-- PostgreSQL/PostGIS production integration.
+- Production PostgreSQL/PostGIS deployment configuration.
 - Infrastructure asset management.
 - Advanced spatial queries.
 - AI model integration.

@@ -42,7 +42,7 @@ Implemented database entities are distinguished from planned entities to ensure 
 
 | Production database | PostgreSQL |
 
-| Planned spatial extension | PostGIS |
+| Spatial extension | PostGIS (implemented) |
 
 | API validation | Pydantic |
 
@@ -54,12 +54,10 @@ Implemented database entities are distinguished from planned entities to ensure 
 
 
 
-The production database is intended to use PostgreSQL with PostGIS.
+PostgreSQL with PostGIS has been implemented and tested locally. Production deployment configuration remains pending.
 
 
-
-The current implementation stores geographic geometry in JSON columns rather than native PostGIS geometry columns.
-
+The backend supports PostgreSQL with native PostGIS geometry columns using SRID 4326. SQLite remains available for local development and automated tests, using JSON geometry storage. The API exchanges geographic data using GeoJSON.
 
 
 ## 3. Implemented Database Entities
@@ -92,7 +90,7 @@ The current implementation stores geographic geometry in JSON columns rather tha
 
 | crs | VARCHAR(50) | NOT NULL | Coordinate Reference System |
 
-| geometry | JSON | NOT NULL | Geographic boundary in GeoJSON-style format |
+| geometry | PostGIS GEOMETRY (SRID 4326); SQLite JSON | NOT NULL | Geographic monitoring area boundary |
 
 
 
@@ -258,7 +256,7 @@ This relationship must be enforced through a future database migration.
 
 | observed_at | DateTime(timezone=True) | NOT NULL | Detection observation timestamp |
 
-| geometry | JSON | NOT NULL | Geographic detection geometry |
+| geometry | PostGIS POINT (SRID 4326); SQLite JSON | NOT NULL | Geographic detection location |
 
 | origin_category | VARCHAR(30) | NOT NULL | Classification of the detected change |
 
@@ -360,7 +358,7 @@ confidence >= 0 AND confidence <= 1
 | monitoring_area_id | Integer | Foreign Key, NOT NULL, Indexed | Associated monitoring area |
 | asset_name | VARCHAR(120) | NOT NULL | Infrastructure asset name |
 | asset_type | VARCHAR(80) | NOT NULL | Infrastructure category |
-| location | JSON | NOT NULL | Geographic location in GeoJSON format |
+| location | PostGIS GEOMETRY (SRID 4326); SQLite JSON | NOT NULL | Infrastructure asset geographic location |
 
 **Foreign Key relationship:**
 
@@ -516,11 +514,11 @@ erDiagram
 
 | GeoJSON coordinate order | Longitude, Latitude |
 
-| Geometry storage | JSON |
+| Geometry storage | PostgreSQL: PostGIS geometry (SRID 4326); SQLite: JSON |
 
 | Geometry validation | Shapely |
 
-| Planned spatial storage | PostGIS geometry |
+| Spatial storage status | Implemented for PostgreSQL |
 
 
 
@@ -532,7 +530,7 @@ Satellite images retain their own CRS metadata. Detection creation currently req
 
 
 
-Native PostGIS geometry storage and spatial indexing remain future implementation tasks.
+Native PostGIS geometry storage is implemented for PostgreSQL using SRID 4326. SQLite continues to use JSON geometry storage.
 
 
 
@@ -615,18 +613,18 @@ Their final schemas and relationships must be agreed upon before implementation.
 
 | Detection foreign keys | Implemented |
 
-| Monitoring area foreign key enforcement | Pending |
+| Monitoring area foreign key enforcement | Implemented |
 
 | InfrastructureAsset model | Implemented |
 | InfrastructureAsset API schemas | Implemented |
 | InfrastructureAsset API endpoints | Implemented |
 | InfrastructureAsset foreign key | Implemented |
 | InfrastructureAsset GIS geometry validation | Implemented |
-| PostgreSQL integration | Pending |
+| PostgreSQL integration | Implemented and tested locally |
 
-| PostGIS geometry storage | Pending |
+| PostGIS geometry storage | Implemented |
 
-| Spatial indexes | Pending |
+| Spatial indexes | Implemented |
 
 | Remaining team database entities | Pending integration |
 
@@ -638,16 +636,7 @@ Their final schemas and relationships must be agreed upon before implementation.
 
 The following improvements are planned:
 
-
-
-- Enforce the monitoring area foreign key.
-
-
-- Migrate the development database to PostgreSQL.
-
-- Replace JSON geometry columns with PostGIS geometry columns.
-
-- Introduce spatial indexes for geographic queries.
+- Complete production PostgreSQL/PostGIS deployment configuration.
 
 - Standardize timezone-aware timestamp validation.
 
@@ -658,7 +647,3 @@ The following improvements are planned:
 
 
 This document will be updated as the database architecture evolves.
-
-
-
-
