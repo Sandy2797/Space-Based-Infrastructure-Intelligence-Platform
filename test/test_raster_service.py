@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-
+from affine import Affine
 import numpy as np
 import pytest
 import rasterio
@@ -119,3 +119,42 @@ def test_missing_image(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         read_image_metadata(missing_path)
+
+
+def test_corrupted_raster_file_is_rejected(tmp_path):
+    image_path = tmp_path / "corrupted.tif"
+    image_path.write_bytes(b"This is not a valid raster file")
+
+    with pytest.raises(
+        ValueError,
+        match="Unsupported or unreadable raster file",
+    ):
+        read_image_metadata(image_path)
+
+
+def test_invalid_geospatial_transform_is_rejected(tmp_path):
+    image_path = tmp_path / "invalid_transform.tif"
+
+    with rasterio.open(
+        image_path,
+        "w",
+        driver="GTiff",
+        width=3,
+        height=2,
+        count=1,
+        dtype="uint8",
+        crs="EPSG:4326",
+        transform=Affine(
+            1, 2, 31,
+            0.5, 1, 30,
+        ),
+    ) as image:
+        image.write(
+            np.ones((1, 2, 3), dtype=np.uint8)
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="invalid or degenerate geospatial transform",
+    ):
+        read_image_metadata(image_path)
