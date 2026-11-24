@@ -1,7 +1,13 @@
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from app.db.spatial import from_storage, to_storage
+
+from app.db.spatial import (
+    STORAGE_CRS,
+    from_storage,
+    to_storage,
+)
 from app.db.database import get_db
 from app.models.monitoring_area import MonitoringAreaDB
 from app.schemas.monitoring_area import (
@@ -23,6 +29,7 @@ def to_area_response(
         id=record.id,
         name=record.name,
         crs=record.crs,
+        geometry_crs=STORAGE_CRS,
         geometry=from_storage(record.geometry),
     )
 
@@ -36,11 +43,24 @@ def create_monitoring_area(
     area: MonitoringAreaCreate,
     db: Session = Depends(get_db),
 ):
+    try:
+        stored_geometry = to_storage(
+            area.geometry,
+            db,
+            source_crs=area.crs,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
     record = MonitoringAreaDB(
-    name=area.name,
-    crs=area.crs,
-    geometry=to_storage(area.geometry, db),
-)
+        name=area.name,
+        crs=area.crs,
+        geometry=stored_geometry,
+    )
 
     db.add(record)
     db.commit()

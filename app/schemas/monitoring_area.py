@@ -1,7 +1,12 @@
+
+from math import isfinite
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+from shapely import get_coordinates
 from shapely.geometry import shape
+
+from app.db.spatial import normalize_crs, STORAGE_CRS
 
 
 class MonitoringAreaCreate(BaseModel):
@@ -10,9 +15,14 @@ class MonitoringAreaCreate(BaseModel):
         max_length=120,
     )
 
-    crs: Literal["EPSG:4326"] = "EPSG:4326"
+    crs: str = STORAGE_CRS
 
     geometry: dict[str, Any]
+
+    @field_validator("crs")
+    @classmethod
+    def validate_crs(cls, value):
+        return normalize_crs(value)
 
     @field_validator("geometry")
     @classmethod
@@ -27,6 +37,7 @@ class MonitoringAreaCreate(BaseModel):
 
         try:
             boundary = shape(value)
+
         except (TypeError, ValueError, KeyError, IndexError) as exc:
             raise ValueError(
                 "Invalid GeoJSON geometry"
@@ -37,17 +48,15 @@ class MonitoringAreaCreate(BaseModel):
                 "Monitoring area geometry is empty or invalid"
             )
 
-        # GeoJSON coordinates use longitude, latitude order.
-        min_lon, min_lat, max_lon, max_lat = boundary.bounds
+        coordinates = get_coordinates(boundary)
 
-        if not (
-            -180 <= min_lon <= 180
-            and -180 <= max_lon <= 180
-            and -90 <= min_lat <= 90
-            and -90 <= max_lat <= 90
+        if not all(
+            isfinite(float(value))
+            for row in coordinates
+            for value in row
         ):
             raise ValueError(
-                "Coordinates are outside valid longitude/latitude ranges"
+                "Monitoring area contains non-finite coordinates"
             )
 
         return value
@@ -55,3 +64,6 @@ class MonitoringAreaCreate(BaseModel):
 
 class MonitoringAreaResponse(MonitoringAreaCreate):
     id: int
+
+    # Returned geometry is always stored in EPSG:4326.
+    geometry_crs: Literal["EPSG:4326"] = "EPSG:4326"

@@ -90,3 +90,42 @@ def test_reject_invalid_polygon():
     )
 
     assert response.status_code == 422
+
+
+def test_create_monitoring_area_transforms_epsg3857():
+    area = sample_area()
+
+    area["crs"] = "EPSG:3857"
+
+    area["geometry"] = {
+        "type": "Polygon",
+        "coordinates": [[
+            [3449000, 3499000],
+            [3451000, 3499000],
+            [3451000, 3501000],
+            [3449000, 3501000],
+            [3449000, 3499000],
+        ]],
+    }
+
+    response = client.post(
+        "/api/v1/monitoring-areas",
+        json=area,
+    )
+
+    assert response.status_code == 201, response.text
+
+    result = response.json()
+
+    assert result["crs"] == "EPSG:3857"
+    assert result["geometry_crs"] == "EPSG:4326"
+
+    coordinates = result["geometry"]["coordinates"][0]
+
+    # Coordinates must now be longitude and latitude.
+    for longitude, latitude in coordinates:
+        assert -180 <= longitude <= 180
+        assert -90 <= latitude <= 90
+
+    # They must not still contain projected coordinates.
+    assert coordinates[0] != [3449000, 3499000]
