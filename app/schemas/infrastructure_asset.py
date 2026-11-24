@@ -1,5 +1,6 @@
 
-from typing import Any
+from math import isfinite
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -7,7 +8,10 @@ from pydantic import (
     field_validator,
 )
 
+from shapely import get_coordinates
 from shapely.geometry import shape
+
+from app.db.spatial import STORAGE_CRS, normalize_crs
 
 
 class InfrastructureAssetCreate(BaseModel):
@@ -24,7 +28,14 @@ class InfrastructureAssetCreate(BaseModel):
         max_length=80,
     )
 
+    crs: str = STORAGE_CRS
+
     location: dict[str, Any]
+
+    @field_validator("crs")
+    @classmethod
+    def validate_crs(cls, value):
+        return normalize_crs(value)
 
     @field_validator("asset_name", "asset_type", mode="before")
     @classmethod
@@ -64,20 +75,30 @@ class InfrastructureAssetCreate(BaseModel):
                 "Infrastructure asset geometry is empty or invalid"
             )
 
-        min_lon, min_lat, max_lon, max_lat = asset_geometry.bounds
+        coordinates = get_coordinates(asset_geometry)
 
-        if not (
-            -180 <= min_lon <= 180
-            and -180 <= max_lon <= 180
-            and -90 <= min_lat <= 90
-            and -90 <= max_lat <= 90
+        if not all(
+            isfinite(float(value))
+            for row in coordinates
+            for value in row
         ):
             raise ValueError(
-                "Coordinates are outside valid longitude/latitude ranges"
+                "Infrastructure asset contains non-finite coordinates"
             )
 
         return value
 
 
-class InfrastructureAssetResponse(InfrastructureAssetCreate):
+class InfrastructureAssetResponse(BaseModel):
+
     id: int
+
+    monitoring_area_id: int
+
+    asset_name: str
+
+    asset_type: str
+
+    location: dict[str, Any]
+
+    location_crs: Literal["EPSG:4326"] = STORAGE_CRS

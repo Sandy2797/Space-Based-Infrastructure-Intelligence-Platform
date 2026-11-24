@@ -4,7 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from shapely.geometry import box, shape
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from app.db.spatial import from_storage, to_storage
+from app.db.spatial import (
+    STORAGE_CRS,
+    from_storage,
+    to_storage,
+)
 from app.db.database import get_db
 from app.models.infrastructure_asset import InfrastructureAssetDB
 from app.models.monitoring_area import MonitoringAreaDB
@@ -29,8 +33,14 @@ def to_asset_response(
         asset_name=record.asset_name,
         asset_type=record.asset_type,
         location=from_storage(record.location),
+        location_crs=STORAGE_CRS,
     )
 
+@router.post(
+    "",
+    response_model=InfrastructureAssetResponse,
+    status_code=201,
+)
 @router.post(
     "",
     response_model=InfrastructureAssetResponse,
@@ -51,26 +61,41 @@ def create_infrastructure_asset(
             detail="Monitoring area not found",
         )
 
-    # Convert geometries for spatial validation.
+    # Transform asset geometry into EPSG:4326.
+    try:
+        stored_location = to_storage(
+            asset.location,
+            db,
+            source_crs=asset.crs,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
+    # Both geometries are now in EPSG:4326.
     area_geometry = shape(
         from_storage(monitoring_area.geometry)
     )
 
-    asset_geometry = shape(asset.location)
+    asset_geometry = shape(
+        from_storage(stored_location)
+    )
 
-    # Ensure the asset is within its monitoring area.
+    # Ensure the transformed asset is inside its monitoring area.
     if not area_geometry.covers(asset_geometry):
         raise HTTPException(
             status_code=422,
             detail="Infrastructure asset must be inside its monitoring area",
         )
 
-    # Save the asset.
     record = InfrastructureAssetDB(
         monitoring_area_id=asset.monitoring_area_id,
         asset_name=asset.asset_name,
         asset_type=asset.asset_type,
-        location=to_storage(asset.location, db),
+        location=stored_location,
     )
 
     db.add(record)
@@ -78,7 +103,6 @@ def create_infrastructure_asset(
     db.refresh(record)
 
     return to_asset_response(record)
-
 
 @router.get(
     "",

@@ -319,3 +319,34 @@ def test_reject_invalid_bounding_box_coordinates():
     )
 
     assert response.status_code == 422
+
+
+def test_create_infrastructure_asset_transforms_epsg3857():
+    area_id = create_monitoring_area()
+
+    location = {
+        "type": "Point",
+        "coordinates": [
+            3456470.1891311444,
+            3509978.497738587,
+        ],
+    }
+
+    data = sample_asset(area_id, location)
+    data["crs"] = "EPSG:3857"
+
+    response = client.post(
+        "/api/v1/infrastructure-assets",
+        json=data,
+    )
+
+    assert response.status_code == 201, response.text
+
+    result = response.json()
+
+    assert result["location_crs"] == "EPSG:4326"
+
+    longitude, latitude = result["location"]["coordinates"]
+
+    assert abs(longitude - 31.05) < 0.00001
+    assert abs(latitude - 30.05) < 0.00001
