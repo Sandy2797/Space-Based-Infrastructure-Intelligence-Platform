@@ -1,461 +1,174 @@
 # Technical Decisions Document
 
-
-
 ## Project
-
 Space-Based Infrastructure Intelligence Platform
 
-
-
 ## 1. Purpose
-
-
-
-This document records the main technical decisions governing the Backend and GIS architecture.
-
-
-
-It explains the technologies selected, their purposes, implementation status, and decisions that still require confirmation.
-
-
-
-The document will be updated as the platform develops.
-
-
+This document records the Backend and GIS technical decisions, their rationale, implementation status, and remaining integration dependencies.
 
 ## 2. Backend Framework
-
-
-
-**Decision:** Use Python with FastAPI.
-
-
+**Decision:** Python with FastAPI.
 
 **Reason:**
-
-- FastAPI supports REST API development.
-
+- FastAPI supports versioned REST API development.
 - Pydantic provides request and response validation.
-
-- Automatic OpenAPI documentation simplifies API testing.
-
-- Python provides access to established geospatial and data-processing libraries.
-
-
+- OpenAPI provides interactive API documentation.
+- Python supports established geospatial libraries.
 
 **Status:** Implemented.
 
-
-
 ## 3. Database and ORM
-
-
-
-**Decision:** Use SQLAlchemy as the database ORM.
-
-
-
-**Development configuration:** SQLite.
-
-
-
-**Planned production configuration:** PostgreSQL with PostGIS.
-
-
+**Decision:** SQLAlchemy with PostgreSQL/PostGIS as the primary spatial database and SQLite as a supported development and testing option.
 
 **Reason:**
-
-- SQLAlchemy provides structured database models and session management.
-
-- SQLite supports local development and automated testing.
-
-- PostgreSQL provides a suitable production database.
-
-- PostGIS will support spatial queries and geographic operations.
-
-
+- SQLAlchemy provides database models and session management.
+- PostgreSQL provides persistent relational storage.
+- PostGIS provides native geometry storage and spatial operations.
+- SQLite supports isolated automated tests.
 
 **Status:**
-
 - SQLAlchemy: Implemented.
-
-- SQLite: Implemented.
-
-- PostgreSQL: Pending.
-
-- PostGIS: Pending.
-
-
+- PostgreSQL: Implemented and tested locally.
+- PostGIS: Implemented and tested locally.
+- SQLite fallback and test configuration: Implemented.
+- Production deployment: Pending.
 
 ## 4. Geospatial Processing
-
-
-
-**Decision:** Use Python geospatial libraries.
-
-
-
-Selected libraries:
-
-
-
-- Rasterio: Raster metadata extraction and raster processing.
-
+**Selected technologies:**
+- Rasterio: Raster metadata extraction.
 - Shapely: Geometry validation and spatial operations.
-
 - GeoPandas: Geospatial data manipulation.
+- PyProj: CRS handling and coordinate transformations.
+- GeoAlchemy2: SQLAlchemy integration with PostGIS geometry.
 
-- GeoAlchemy2: Planned SQLAlchemy integration with spatial database types.
-
-
-
-**Reason:**
-
-
-
-These libraries provide functionality for satellite image metadata processing, geographic validation, and future spatial database integration.
-
-
-
-**Status:**
-
-- Rasterio: Used in the image registration implementation.
-
-- Shapely: Used in monitoring area geometry validation.
-
-- GeoPandas: Available for future geospatial processing.
-
-- GeoAlchemy2: Planned for PostGIS integration.
-
-
+**Status:** The libraries required by the current backend GIS implementation are integrated. Further raster processing and AI pipeline integration remain pending.
 
 ## 5. Coordinate Reference Systems
+**Decision:** Use EPSG:4326 as the backend geometry storage CRS.
 
+**Conventions:**
+- GeoJSON coordinates use longitude, latitude order.
+- Monitoring area and infrastructure asset input geometries are transformed to EPSG:4326.
+- Satellite images retain their source CRS metadata.
+- Detection creation currently requires matching CRS metadata for the before and after images.
+- Detection geometry is currently stored and returned in the backend storage CRS.
 
-
-**Decision:** Use EPSG:4326 for monitoring area boundaries in the current API.
-
-
-
-**Coordinate order:** Longitude followed by latitude for GeoJSON coordinates.
-
-
-
-**Reason:**
-
-
-
-EPSG:4326 provides a geographic coordinate reference system suitable for representing monitoring area boundaries and exchanging GeoJSON data.
-
-
-
-Satellite image metadata retains the CRS associated with each raster.
-
-
-
-Before and after images used in a detection must have matching CRS information.
-
-
-
-**Status:**
-
-- Monitoring area EPSG:4326 validation: Implemented.
-
-- Satellite image CRS metadata: Implemented.
-
-- General CRS transformation pipeline: Pending.
-
-- Explicit detection geometry CRS contract: Requires confirmation.
-
-
+**Status:** CRS normalization and geometry transformation are implemented. The final detection geometry contract with the AI component requires confirmation.
 
 ## 6. Geographic Geometry Storage
+**Decision:** Use native PostGIS geometry columns in PostgreSQL and JSON geometry storage in SQLite.
 
-
-
-**Current decision:** Store geographic geometry in JSON database columns during the initial development phase.
-
-
-
-**Planned improvement:** Use native PostGIS geometry columns in the production database.
-
-
-
-**Reason:**
-
-
-
-JSON geometry supports the current development implementation, while PostGIS will provide spatial indexing and more efficient geographic queries.
-
-
+**Current geometry types:**
+- Monitoring areas: GEOMETRY, SRID 4326.
+- Infrastructure assets: GEOMETRY, SRID 4326.
+- Detections: POINT, SRID 4326.
 
 **Status:**
-
-- JSON geometry storage: Implemented.
-
-- PostGIS geometry storage: Pending.
-
-- Spatial indexing: Pending.
-
-
+- PostGIS geometry storage: Implemented.
+- SQLite JSON geometry storage: Implemented.
+- GiST spatial indexes: Implemented.
+- Nearby detection spatial query: Implemented and tested locally.
 
 ## 7. Satellite Image File Management
+**Decision:** Store image metadata and file references in the relational database rather than storing large raster files directly in database rows.
 
-
-
-**Decision:** Store satellite image metadata and file references in the database rather than storing large raster files directly in database rows.
-
-
-
-**Reason:**
-
-- Raster files can be large.
-
-- Separating metadata from file storage improves maintainability.
-
+**Rules:**
 - Original satellite imagery must remain unchanged.
+- File references identify approved source imagery.
+- Raster metadata extraction is integrated with image registration.
+- Actual raster upload and production file/object storage are separate concerns.
 
-- File references allow the processing pipeline to locate approved source imagery.
-
-
-
-**Status:** Metadata registration and file references are implemented. The final production file or object storage solution remains to be confirmed.
-
-
+**Status:** Metadata registration, metadata extraction, and file references are implemented. Production file/object storage remains to be confirmed.
 
 ## 8. API Architecture
-
-
-
 **Decision:** Use versioned REST APIs with JSON request and response formats.
-
-
 
 **Current API prefix:** `/api/v1/`
 
+**Implemented resources:**
+- Monitoring areas: creation and retrieval.
+- Infrastructure assets: registration, retrieval, and filtering.
+- Satellite images: metadata registration and retrieval.
+- Detections: creation, retrieval, filtering, and nearby-asset spatial queries.
 
-
-**Reason:**
-
-- Versioning supports future API changes.
-
-- JSON provides a common interface between team components.
-
-- Separate endpoints allow independent development and testing.
-
-
-
-**Currently implemented resources:**
-
-- Satellite images.
-
-- Monitoring areas.
-
-- Detections.
-
-
-
-**Planned resources:**
-
-- Infrastructure assets.
-
+**Pending resources and integrations:**
 - Permit records.
-
 - Verification cases.
+- Dashboard-specific integration.
+- Feedback and audit integration.
 
-- Dashboard data.
-
-
-
-**Status:** Initial API architecture implemented. Additional endpoints and team integration contracts remain pending.
-
-
+**Status:** Initial Backend and GIS API implementation is complete for the resources listed above. Team integration contracts remain pending.
 
 ## 9. Data Validation and Integrity
-
-
-
-**Decision:** Apply validation at both API and database levels where appropriate.
-
-
+**Decision:** Apply validation at API and database levels where appropriate.
 
 **Technologies:**
+- Pydantic: API validation.
+- Shapely: geometry validation and spatial relationships.
+- SQLAlchemy: database operations.
+- PostgreSQL constraints and foreign keys: persistent data integrity.
 
-- Pydantic for API request validation.
-
-- Shapely for geometry validation.
-
-- SQLAlchemy for database operations.
-
-- Database constraints for persistent data integrity.
-
-
-
-**Current validation rules include:**
-
-- Positive satellite image dimensions.
-
-- Valid monitoring area geometry.
-
-- Allowed monitoring area CRS.
-
-- Valid before-and-after image relationships.
-
-- Confidence scores between 0 and 1.
-
+**Implemented rules include:**
+- Positive image dimensions and band counts.
+- Valid monitoring area geometries.
+- CRS normalization and geometry transformation.
+- Infrastructure asset containment within its monitoring area.
+- Satellite image and monitoring area foreign-key relationships.
+- Detection references to existing before and after images.
+- Different before and after images belonging to the same monitoring area.
+- Chronological image acquisition validation.
+- Confidence values between 0 and 1.
 - Valid detection origin categories.
 
-
-
-**Status:** Initial validation rules implemented. Additional database relationships and spatial constraints remain pending.
-
-
+**Status:** The listed initial validation and database relationships are implemented. Additional constraints may be required after team contracts are agreed.
 
 ## 10. Timestamp Standards
+**Decision:** Require timezone-aware timestamps and normalize stored timestamps to UTC.
 
-
-
-**Decision:** Use timezone-aware timestamps, preferably normalized to UTC, throughout the platform.
-
-
-
-**Reason:**
-
-
-
-Satellite images may originate from different sources and time zones. Consistent timestamps are important when comparing acquisition dates and processing historical observations.
-
-
-
-**Status:** Satellite image acquisition timestamps require timezone-aware values. Detection timestamp validation and consistent UTC normalization require further implementation.
-
-
+**Status:**
+- Satellite image acquisition timestamp validation and UTC normalization: Implemented.
+- Detection observation timestamp validation and UTC normalization: Implemented.
 
 ## 11. Evidence Integrity and Security
-
-
-
-**Decision:** Preserve original satellite evidence and restrict access to approved datasets.
-
-
-
 **Rules:**
-
-- Original satellite imagery must not be modified.
-
+- Original satellite imagery must remain unchanged.
 - Restricted information must not be committed to GitHub.
-
-- Permit records require separate authorization.
-
-- Detection confidence and model version information must be retained.
-
+- Permit records require authorized access.
+- Detection confidence and model version must be retained.
 - Important system actions should be auditable.
-
 - Verification recommendations must remain subject to human review.
 
-
-
-**Status:** Data-handling constraints are documented. Full security and audit integration depends on the relevant team components.
-
-
+**Status:** Evidence-handling constraints are documented. Full authentication, authorization, and audit integration remain dependent on the relevant team components.
 
 ## 12. Team Integration Strategy
+Use documented API contracts between independently developed components.
 
-
-
-**Decision:** Use documented API contracts between independently developed components.
-
-
-
-**Integration dependencies:**
-
-
-
-- Nada: AI detection output and evidence-quality fields.
-
-- Rana: Next-Best-Verification Engine request and response formats.
-
+**Dependencies:**
+- Nada: AI detection output, geometry, confidence, evidence quality, and forecasting fields.
+- Rana: NBVE input/output contract and verification-case requirements.
 - Seif: Authentication, authorization, and restricted-data requirements.
-
 - Mohamed: Feedback and audit event requirements.
+- Sandy: Backend APIs, GIS processing, database persistence, and integration.
 
-- Sandy: Backend APIs, GIS processing, and database integration.
+Temporary mock data may be used for independent backend testing until actual component contracts are agreed.
 
-
-
-The Backend and GIS component will provide the required APIs and data persistence.
-
-
-
-Temporary mock data may be used for independent backend testing until the actual component contracts are agreed upon.
-
-
-
-**Status:** Initial backend APIs are implemented. Final integration contracts remain pending.
-
-
+**Status:** Initial backend APIs and database infrastructure are implemented. Final integration contracts remain pending.
 
 ## 13. Human-in-the-Loop Decision Making
+The platform provides decision support, not autonomous legal or enforcement decisions.
 
-
-
-**Decision:** The platform will provide decision support rather than autonomous legal or enforcement decisions.
-
-
-
-**Reason:**
-
-
-
-Satellite-based change detection may contain uncertainty. A missing permit record does not establish illegal construction, and AI predictions should not independently determine enforcement actions.
-
-
-
-Authorized reviewers must evaluate relevant evidence before making operational decisions.
-
-
+A missing permit record does not establish illegal activity. AI predictions and verification recommendations must remain subject to authorized human review.
 
 **Status:** Adopted as a project design constraint.
 
-
-
 ## 14. Pending Technical Decisions
-
-
-
-The following items require further implementation or team agreement:
-
-
-
-1. Final PostgreSQL and PostGIS production configuration.
-
-2. Satellite raster file and object storage solution.
-
-3. Spatial geometry types and indexing strategy.
-
-4. Monitoring area foreign key enforcement.
-
-5. Explicit CRS contract for detection geometry.
-
-6. Standardized UTC timestamp validation.
-
-7. Final AI detection API contract.
-
-8. Final NBVE API contract.
-
-9. Authentication and authorization integration.
-
-10. Feedback and audit data contracts.
-
-
+1. Production PostgreSQL/PostGIS deployment configuration.
+2. Production satellite raster file/object storage.
+3. Final detection geometry and AI evidence contract with Nada.
+4. Final NBVE request/response contract with Rana.
+5. Authentication and authorization integration with Seif.
+6. Feedback and audit data contracts with Mohamed.
+7. Future database schemas for permits, forecasts, verification cases, users, feedback, and audit records.
 
 ## 15. Document Maintenance
-
-
-
-This document represents the current Backend and GIS technical decisions.
-
-
-
-Decisions will be updated when implementation changes, team integration requirements are finalized, or new technical requirements are approved.
+Update this document when implementation changes or when team integration requirements are approved.

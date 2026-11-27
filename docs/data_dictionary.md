@@ -1,4 +1,4 @@
-﻿
+
 
 # Data Dictionary
 
@@ -36,13 +36,13 @@ Implemented database entities are distinguished from planned entities to ensure 
 
 | ORM | SQLAlchemy |
 
-| Database | SQLite (development) |
+| Database | PostgreSQL with PostGIS when configured; SQLite fallback for development and tests |
 
-| Default database file | space_infra_dev.sqlite3 |
+| Default SQLite database file | space_infra_dev.sqlite3 |
 
-| Production database | PostgreSQL |
+| Production deployment | Pending |
 
-| Spatial extension | PostGIS (implemented) |
+| Spatial extension | PostGIS (implemented and tested locally) |
 
 | API validation | Pydantic |
 
@@ -208,25 +208,11 @@ The backend supports PostgreSQL with native PostGIS geometry columns using SRID 
 
 
 
-**Important database relationship note:**
+**Foreign Key relationship:**
 
-
-
-The current model defines monitoring_area_id as an Integer, but it does not yet declare a ForeignKey to monitoring_areas.id.
-
-
-
-The intended relationship is:
-
-
-
-MONITORING_AREA (1) ---- (Many) SATELLITE_IMAGE
-
-
-
-This relationship must be enforced through a future database migration.
-
-
+- `monitoring_area_id` references `monitoring_areas.id`.
+- The foreign key uses `ON DELETE RESTRICT`.
+- An index is implemented on `monitoring_area_id`.
 
 ### 3.3 Detection
 
@@ -412,89 +398,53 @@ Shapely is used to validate geometry and check whether the complete asset geomet
 
 
 
-```mermaid
-
-MONITORING_AREA ||--o{ INFRASTRUCTURE_ASSET : contains
-
-INFRASTRUCTURE_ASSET {
-    int id PK
-    int monitoring_area_id FK
-    string asset_name
-    string asset_type
-    json location
-}
-
 erDiagram
+    MONITORING_AREA ||--o{ SATELLITE_IMAGE : contains
+    MONITORING_AREA ||--o{ INFRASTRUCTURE_ASSET : contains
+    SATELLITE_IMAGE ||--o{ DETECTION : before_image
+    SATELLITE_IMAGE ||--o{ DETECTION : after_image
 
-       SATELLITE_IMAGE ||--o{ DETECTION : before_image
+    MONITORING_AREA {
+        int id PK
+        string name
+        string crs
+        geometry geometry
+    }
 
-       SATELLITE_IMAGE ||--o{ DETECTION : after_image
+    SATELLITE_IMAGE {
+        int id PK
+        int monitoring_area_id FK
+        string provider
+        string file_reference
+        datetime acquired_at
+        string crs
+        int width
+        int height
+        int band_count
+    }
 
+    INFRASTRUCTURE_ASSET {
+        int id PK
+        int monitoring_area_id FK
+        string asset_name
+        string asset_type
+        geometry location
+    }
 
-
-       MONITORING_AREA {
-
-           int id PK
-
-           string name
-
-           string crs
-
-           json geometry
-
-       }
-
-
-
-       SATELLITE_IMAGE {
-
-           int id PK
-
-           int monitoring_area_id
-
-           string provider
-
-           string file_reference
-
-           datetime acquired_at
-
-           string crs
-
-           int width
-
-           int height
-
-           int band_count
-
-       }
-
-
-
-       DETECTION {
-
-           string id PK
-
-           int before_image_id FK
-
-           int after_image_id FK
-
-           datetime observed_at
-
-           json geometry
-
-           string origin_category
-
-           float confidence
-
-           string model_version
-
-       }
-
-```
+    DETECTION {
+        string id PK
+        int before_image_id FK
+        int after_image_id FK
+        datetime observed_at
+        geometry geometry
+        string origin_category
+        float confidence
+        string model_version
+    }
 
 
 
-**Important:** The diagram shows the currently enforced foreign keys. The monitoring area relationship is an intended logical relationship and is not yet enforced by a database foreign key.
+**Important:** The diagram shows the implemented foreign key relationships, including the monitoring-area foreign keys for satellite images and infrastructure assets. Both use `ON DELETE RESTRICT`.
 
 
 
@@ -632,18 +582,11 @@ Their final schemas and relationships must be agreed upon before implementation.
 
 ## 9. Future Improvements
 
-
-
 The following improvements are planned:
 
 - Complete production PostgreSQL/PostGIS deployment configuration.
-
-- Standardize timezone-aware timestamp validation.
-
-- Add appropriate indexes for frequently queried fields.
-
-- Implement database migrations to manage schema changes safely.
-
-
-
-This document will be updated as the database architecture evolves.
+- Integrate production raster file storage and retrieval.
+- Integrate AI detection outputs with the backend detection API.
+- Integrate permit records, verification cases, and NBVE workflows.
+- Implement authentication and role-based access control.
+- Integrate feedback, audit logging, and evaluation workflows.
