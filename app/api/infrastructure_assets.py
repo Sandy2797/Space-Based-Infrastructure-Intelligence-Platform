@@ -41,11 +41,6 @@ def to_asset_response(
     response_model=InfrastructureAssetResponse,
     status_code=201,
 )
-@router.post(
-    "",
-    response_model=InfrastructureAssetResponse,
-    status_code=201,
-)
 def create_infrastructure_asset(
     asset: InfrastructureAssetCreate,
     db: Session = Depends(get_db),
