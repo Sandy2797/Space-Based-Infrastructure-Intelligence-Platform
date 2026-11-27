@@ -6,12 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from geoalchemy2 import Geography
 from pyproj import CRS, Transformer
 from shapely.geometry import shape
-from shapely.ops import transform as transform_shape
+from shapely import transform as transform_shape
 from sqlalchemy import cast, func, select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.db.spatial import from_storage, to_storage
+from app.models.monitoring_area import MonitoringAreaDB
 from app.models.detection import DetectionDB
 from app.models.infrastructure_asset import InfrastructureAssetDB
 from app.models.satellite_image import SatelliteImageDB
@@ -44,8 +45,16 @@ def to_detection_response(
         after_image_id=record.after_image_id,
         observed_at=observed_at,
         geometry=from_storage(record.geometry),
+        component_id=record.component_id,
         origin_category=record.origin_category,
         confidence=record.confidence,
+        change_score=record.change_score,
+        threshold=record.threshold,
+        pixel_count=record.pixel_count,
+        area_m2=record.area_m2,
+        evidence_quality=record.evidence_quality,
+        quality_flags=record.quality_flags,
+        mask_reference=record.mask_reference,
         model_version=record.model_version,
     )
 
@@ -118,22 +127,71 @@ def create_detection(
             status_code=422,
             detail="observed_at must include timezone information",
         )
+    # Require an explicit timezone for observation timestamps.
+    if detection.observed_at.tzinfo is None:
+        raise HTTPException(
+            status_code=422,
+            detail="observed_at must include timezone information",
+        )
+
+    # Retrieve the monitoring area associated with the images.
+    monitoring_area = db.get(
+        MonitoringAreaDB,
+        before_image.monitoring_area_id,
+    )
+
+    if monitoring_area is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Monitoring area not found",
+        )
+
+    # Transform detection geometry into EPSG:4326.
+    try:
+        stored_geometry = to_storage(
+            detection.geometry.model_dump(),
+            db,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=str(exc),
+        ) from exc
+
+    # Both geometries are now in EPSG:4326.
+    area_geometry = shape(
+        from_storage(monitoring_area.geometry)
+    )
+
+    detection_geometry = shape(
+        from_storage(stored_geometry)
+    )
+
+    # Ensure the complete detection is inside its monitoring area.
+    if not area_geometry.covers(detection_geometry):
+        raise HTTPException(
+            status_code=422,
+            detail="Detection must be inside its monitoring area",
+        )
 
     record = DetectionDB(
-        id=str(uuid4()),
-        before_image_id=detection.before_image_id,
-        after_image_id=detection.after_image_id,
-        observed_at=detection.observed_at.astimezone(
-            timezone.utc
-        ),
-        geometry=to_storage(
-    detection.geometry.model_dump(),
-    db,
-),
-        origin_category=detection.origin_category,
-        confidence=detection.confidence,
-        model_version=detection.model_version,
-    )
+            id=str(uuid4()),
+            before_image_id=detection.before_image_id,
+            after_image_id=detection.after_image_id,
+            observed_at=detection.observed_at.astimezone(timezone.utc),
+            geometry=stored_geometry,
+            component_id=detection.component_id,
+            origin_category=detection.origin_category,
+            confidence=detection.confidence,
+            change_score=detection.change_score,
+            threshold=detection.threshold,
+            pixel_count=detection.pixel_count,
+            area_m2=detection.area_m2,
+            evidence_quality=detection.evidence_quality,
+            quality_flags=detection.quality_flags,
+            mask_reference=detection.mask_reference,
+            model_version=detection.model_version,
+      )
 
     db.add(record)
     db.commit()
@@ -322,9 +380,10 @@ def get_detections_near_asset(
         project = transformer.transform
 
         projected_asset = transform_shape(
-            project,
             asset_geometry,
-        )
+            project,
+            interleaved=False,
+)
 
         records = db.scalars(
             statement.order_by(
@@ -337,8 +396,9 @@ def get_detections_near_asset(
             record
             for record in records
             if transform_shape(
-                project,
                 shape(from_storage(record.geometry)),
+                project,
+                interleaved=False,
             ).distance(projected_asset) <= radius_m
         ]
 

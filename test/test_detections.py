@@ -61,7 +61,7 @@ def sample_detection():
         "observed_at": "2026-11-20T10:00:00Z",
         "geometry": {
             "type": "Point",
-            "coordinates": [31.2, 30.2],
+            "coordinates": [31.05, 30.05],
         },
         "origin_category": "human_made",
         "confidence": 0.87,
@@ -109,6 +109,24 @@ def test_invalid_confidence(two_monitoring_areas):
 
     assert response.status_code == 422
 
+
+def test_accept_null_confidence(two_monitoring_areas):
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = after_id
+    data["confidence"] = None
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["confidence"] is None
 
 def test_missing_image_reference():
 
@@ -233,10 +251,79 @@ def test_detection_is_persisted_in_database(
         assert saved.confidence == 0.87
         assert saved.geometry["type"] == "Point"
         assert saved.geometry["coordinates"] == [
-            31.2,
-            30.2,
+            31.05,
+            30.05,
         ]
 
+
+def test_ai_metadata_is_persisted_and_returned(
+    isolated_database,
+    two_monitoring_areas,
+):
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
+
+    data = sample_detection()
+    data.update({
+        "before_image_id": before_id,
+        "after_image_id": after_id,
+        "component_id": 8,
+        "confidence": None,
+        "change_score": 0.15,
+        "threshold": {
+            "method": "percentile",
+            "percentile": 95,
+            "value": 0.106533,
+        },
+        "pixel_count": 25,
+        "area_m2": 2500.0,
+        "evidence_quality": {
+            "image_quality": "acceptable",
+            "cloud_shadow_check": "passed",
+            "alignment": "acceptable",
+            "metadata_completeness": "complete",
+            "label_quality": "unreviewed",
+        },
+        "quality_flags": ["unreviewed"],
+        "mask_reference": "p95_change_mask.tif",
+        "model_version": "image-differencing-baseline-v1.0.0",
+    })
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 201, response.text
+
+    result = response.json()
+
+    assert result["component_id"] == 8
+    assert result["confidence"] is None
+    assert result["change_score"] == 0.15
+    assert result["threshold"] == data["threshold"]
+    assert result["pixel_count"] == 25
+    assert result["area_m2"] == 2500.0
+    assert result["evidence_quality"] == data["evidence_quality"]
+    assert result["quality_flags"] == ["unreviewed"]
+    assert result["mask_reference"] == "p95_change_mask.tif"
+    assert result["model_version"] == data["model_version"]
+
+    with Session(isolated_database) as db:
+        saved = db.get(DetectionDB, result["id"])
+
+        assert saved is not None
+        assert saved.component_id == 8
+        assert saved.confidence is None
+        assert saved.change_score == 0.15
+        assert saved.threshold == data["threshold"]
+        assert saved.pixel_count == 25
+        assert saved.area_m2 == 2500.0
+        assert saved.evidence_quality == data["evidence_quality"]
+        assert saved.quality_flags == ["unreviewed"]
+        assert saved.mask_reference == "p95_change_mask.tif"
+        assert saved.model_version == data["model_version"]
 
 def create_detection_for_filters(
     monitoring_area_id,
@@ -412,28 +499,130 @@ def test_reject_timestamp_without_timezone(two_monitoring_areas):
     )
 
 
+
+def test_accept_polygon_geometry(two_monitoring_areas):
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = after_id
+    data["geometry"] = {
+        "type": "Polygon",
+        "coordinates": [[
+            [31.0, 30.0],
+            [31.1, 30.0],
+            [31.1, 30.1],
+            [31.0, 30.0],
+        ]],
+    }
+
+    response = client.post("/api/v1/detections", json=data)
+
+    assert response.status_code == 201
+    assert response.json()["geometry"]["type"] == "Polygon"
+
+
+def test_accept_multipolygon_geometry(two_monitoring_areas):
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = after_id
+    data["geometry"] = {
+        "type": "MultiPolygon",
+        "coordinates": [
+            [[
+                [31.01, 30.01],
+                [31.02, 30.01],
+                [31.02, 30.02],
+                [31.01, 30.02],
+                [31.01, 30.01],
+            ]],
+            [[
+                [31.04, 30.04],
+                [31.05, 30.04],
+                [31.05, 30.05],
+                [31.04, 30.05],
+                [31.04, 30.04],
+            ]],
+        ],
+    }
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["geometry"]["type"] == "MultiPolygon"
+
+
+def test_accept_polygon_within_monitoring_area(two_monitoring_areas):
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = after_id
+    data["geometry"] = {
+        "type": "Polygon",
+        "coordinates": [[
+            [31.02, 30.02],
+            [31.04, 30.02],
+            [31.04, 30.04],
+            [31.02, 30.04],
+            [31.02, 30.02],
+        ]],
+    }
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["geometry"]["type"] == "Polygon"
+
+
+def test_reject_detection_outside_monitoring_area(two_monitoring_areas):
+    before_id, after_id = register_two_images(
+        two_monitoring_areas[0]
+    )
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = after_id
+
+    # Longitude 31.2 is outside the monitoring area's maximum of 31.1.
+    data["geometry"] = {
+        "type": "Point",
+        "coordinates": [31.2, 30.05],
+    }
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "Detection must be inside its monitoring area"
+    )
+
+
 @pytest.mark.parametrize(
     "geometry",
     [
-        {
-            "type": "Polygon",
-            "coordinates": [[
-                [31.0, 30.0],
-                [31.1, 30.0],
-                [31.1, 30.1],
-                [31.0, 30.0],
-            ]],
-        },
-        {
-            "type": "Point",
-            "coordinates": [31.2],
-        },
-        {
-            "type": "Point",
-            "coordinates": [31.2, 30.2, 5],
-        },
+        {"type": "Point", "coordinates": [31.2]},
+        {"type": "Point", "coordinates": [31.2, 30.2, 5]},
     ],
 )
+
 def test_reject_invalid_point_geometry(
     geometry,
     two_monitoring_areas,
@@ -447,10 +636,7 @@ def test_reject_invalid_point_geometry(
     data["after_image_id"] = after_id
     data["geometry"] = geometry
 
-    response = client.post(
-        "/api/v1/detections",
-        json=data,
-    )
+    response = client.post("/api/v1/detections", json=data)
 
     assert response.status_code == 422
 

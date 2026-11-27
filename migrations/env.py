@@ -29,7 +29,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        render_as_batch=DATABASE_URL.startswith("sqlite:"),
+        render_as_batch=str(DATABASE_URL).startswith("sqlite:"),
     )
 
     with context.begin_transaction():

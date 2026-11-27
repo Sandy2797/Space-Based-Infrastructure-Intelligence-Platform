@@ -1,3 +1,4 @@
+
 from datetime import datetime
 
 from sqlalchemy import (
@@ -5,6 +6,8 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Integer,
+    JSON,
     String,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -18,7 +21,7 @@ class DetectionDB(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "confidence >= 0 AND confidence <= 1",
+            "confidence IS NULL OR (confidence >= 0 AND confidence <= 1)",
             name="ck_detections_confidence",
         ),
     )
@@ -45,8 +48,13 @@ class DetectionDB(Base):
         nullable=False,
     )
 
+    component_id: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
     geometry: Mapped[dict] = mapped_column(
-        geojson_column("POINT"),
+        geojson_column(),
         nullable=False,
     )
 
@@ -55,9 +63,44 @@ class DetectionDB(Base):
         nullable=False,
     )
 
-    confidence: Mapped[float] = mapped_column(
+    confidence: Mapped[float | None] = mapped_column(
         Float,
-        nullable=False,
+        nullable=True,
+    )
+
+    change_score: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    threshold: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+
+    pixel_count: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    area_m2: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    evidence_quality: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+
+    quality_flags: Mapped[list | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+
+    mask_reference: Mapped[str | None] = mapped_column(
+        String(512),
+        nullable=True,
     )
 
     model_version: Mapped[str] = mapped_column(
