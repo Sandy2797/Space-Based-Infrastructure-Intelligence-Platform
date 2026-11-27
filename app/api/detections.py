@@ -1,13 +1,19 @@
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal
 from uuid import uuid4
-from app.db.spatial import from_storage, to_storage
+
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from geoalchemy2 import Geography
+from pyproj import CRS, Transformer
+from shapely.geometry import shape
+from shapely.ops import transform as transform_shape
+from sqlalchemy import cast, func, select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.db.spatial import from_storage, to_storage
 from app.models.detection import DetectionDB
+from app.models.infrastructure_asset import InfrastructureAssetDB
 from app.models.satellite_image import SatelliteImageDB
 from app.schemas.detection import (
     DetectionCreate,
@@ -239,6 +245,102 @@ def get_detections(
             DetectionDB.id,
         )
     ).all()
+
+    return [
+        to_detection_response(record)
+        for record in records
+    ]
+@router.get(
+    "/near-asset/{asset_id}",
+    response_model=list[DetectionResponse],
+)
+def get_detections_near_asset(
+    asset_id: int,
+    radius_m: float = Query(default=500, gt=0, le=100000),
+    db: Session = Depends(get_db),
+):
+    # Find the infrastructure asset.
+    asset = db.get(InfrastructureAssetDB, asset_id)
+
+    if asset is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Infrastructure asset not found",
+        )
+
+    # Get detections from the same monitoring area.
+    statement = (
+        select(DetectionDB)
+        .join(
+            SatelliteImageDB,
+            DetectionDB.before_image_id == SatelliteImageDB.id,
+        )
+        .where(
+            SatelliteImageDB.monitoring_area_id
+            == asset.monitoring_area_id
+        )
+    )
+
+    # Use PostGIS for PostgreSQL.
+    if db.get_bind().dialect.name == "postgresql":
+        statement = statement.where(
+            func.ST_DWithin(
+                cast(
+                    DetectionDB.geometry,
+                    Geography(srid=4326),
+                ),
+                cast(
+                    InfrastructureAssetDB.location,
+                    Geography(srid=4326),
+                ),
+                radius_m,
+            )
+        ).join(
+            InfrastructureAssetDB,
+            InfrastructureAssetDB.id == asset_id,
+        )
+
+        records = db.scalars(statement).all()
+
+    else:
+        # Use metric distance calculations for SQLite tests.
+        asset_geometry = shape(from_storage(asset.location))
+
+        center = asset_geometry.centroid
+
+        local_crs = CRS.from_proj4(
+            f"+proj=aeqd +lat_0={center.y} "
+            f"+lon_0={center.x} +datum=WGS84 +units=m +no_defs"
+        )
+
+        transformer = Transformer.from_crs(
+            "EPSG:4326",
+            local_crs,
+            always_xy=True,
+        )
+
+        project = transformer.transform
+
+        projected_asset = transform_shape(
+            project,
+            asset_geometry,
+        )
+
+        records = db.scalars(
+            statement.order_by(
+                DetectionDB.observed_at,
+                DetectionDB.id,
+            )
+        ).all()
+
+        records = [
+            record
+            for record in records
+            if transform_shape(
+                project,
+                shape(from_storage(record.geometry)),
+            ).distance(projected_asset) <= radius_m
+        ]
 
     return [
         to_detection_response(record)

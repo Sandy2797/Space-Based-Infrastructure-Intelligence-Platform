@@ -453,3 +453,86 @@ def test_reject_invalid_point_geometry(
     )
 
     assert response.status_code == 422
+
+def create_asset_for_nearby_test(monitoring_area_id):
+    response = client.post(
+        "/api/v1/infrastructure-assets",
+        json={
+            "monitoring_area_id": monitoring_area_id,
+            "asset_name": "Nearby Test Building",
+            "asset_type": "building",
+            "location": {
+                "type": "Point",
+                "coordinates": [31.05, 30.05],
+            },
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    return response.json()["id"]
+
+
+def create_detection_at(monitoring_area_id, coordinates):
+    before_id, after_id = register_two_images(monitoring_area_id)
+
+    data = sample_detection()
+    data["before_image_id"] = before_id
+    data["after_image_id"] = after_id
+    data["geometry"]["coordinates"] = coordinates
+
+    response = client.post(
+        "/api/v1/detections",
+        json=data,
+    )
+
+    assert response.status_code == 201, response.text
+    return response.json()
+def test_get_detections_near_asset(two_monitoring_areas):
+    area_id = two_monitoring_areas[0]
+    asset_id = create_asset_for_nearby_test(area_id)
+
+    # Approximately 55 metres from the asset.
+    create_detection_at(area_id, [31.0505, 30.05])
+
+    # Approximately 960 metres from the asset.
+    create_detection_at(area_id, [31.06, 30.05])
+
+    response = client.get(
+        f"/api/v1/detections/near-asset/{asset_id}",
+        params={"radius_m": 500},
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_nearby_detections_returns_empty_list(two_monitoring_areas):
+    area_id = two_monitoring_areas[0]
+    asset_id = create_asset_for_nearby_test(area_id)
+
+    create_detection_at(area_id, [31.06, 30.05])
+
+    response = client.get(
+        f"/api/v1/detections/near-asset/{asset_id}",
+        params={"radius_m": 500},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_nearby_detections_missing_asset():
+    response = client.get(
+        "/api/v1/detections/near-asset/999999",
+    )
+
+    assert response.status_code == 404
+
+
+def test_nearby_detections_reject_invalid_radius():
+    response = client.get(
+        "/api/v1/detections/near-asset/1",
+        params={"radius_m": 0},
+    )
+
+    assert response.status_code == 422
