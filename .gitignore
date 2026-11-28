@@ -16,3 +16,7 @@ venv/
 *.db
 *.sqlite
 *.sqlite3
+
+# Local satellite imagery and AI datasets
+data/nada/
+data/nada/
