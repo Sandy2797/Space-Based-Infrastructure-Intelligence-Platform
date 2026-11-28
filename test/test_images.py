@@ -84,3 +84,13 @@ def test_registered_image_is_retrievable(monitoring_area):
     assert saved_image["file_reference"] == (
         "samples/image_before.tif"
     )
+
+
+def test_register_image_with_unknown_monitoring_area_returns_404():
+    response = client.post(
+        "/api/v1/images",
+        json=sample_image(monitoring_area_id=999),
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Monitoring area not found"
