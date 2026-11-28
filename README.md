@@ -1,199 +1,127 @@
 # Space-Based Infrastructure Intelligence Platform
 
-A backend platform for satellite-based infrastructure monitoring. It provides APIs for registering satellite images, managing monitoring areas and infrastructure assets, and storing and querying detected changes.
+Backend platform for satellite-based infrastructure monitoring. It provides versioned APIs for monitoring areas, infrastructure assets, satellite image metadata, and detected changes.
 
-## 1. Main Technologies
+## Technology
 
-- Python 3.13
-- FastAPI
-- SQLAlchemy
-- PostgreSQL
-- PostGIS
-- GeoAlchemy2
-- GeoPandas, Rasterio, Shapely and PyProj
-- Alembic
+- Python 3.13, FastAPI, Pydantic
+- SQLAlchemy, Alembic, PostgreSQL/PostGIS
+- SQLite for isolated tests
+- Rasterio, Shapely, PyProj, GeoAlchemy2
 - Pytest
 
-## 2. Project Structure
+## Repository layout
 
 ```text
-.
-├── app/
-│   ├── api/          # API endpoints
-│   ├── db/           # Database configuration and spatial utilities
-│   ├── models/       # Database models
-│   ├── schemas/      # Request and response schemas
-│   └── main.py       # FastAPI application
-├── docs/
-│   └── API.md        # API reference
-├── migrations/
-│   ├── env.py
-│   └── versions/     # Alembic migration scripts
-├── test/             # Automated tests
-├── .env              # Local database configuration (not committed)
-├── requirements.txt
-├── alembic.ini
-└── README.md
+app/
+  api/          FastAPI routers
+  db/           database sessions and spatial storage helpers
+  models/       SQLAlchemy models
+  schemas/      Pydantic request/response schemas
+  services/     raster metadata and image-registration services
+migrations/     Alembic environment and versioned migrations
+test/           automated tests
+docs/           API, data dictionary, decisions, architecture and GIS docs
 ```
 
-## 3. Requirements
-
-Install the following before setting up the project:
-
-- Python 3.13
-- Git
-- PostgreSQL with the PostGIS extension (for the PostgreSQL setup)
-
-## 4. Installation
-
-Clone the repository:
-
-```bash
-git clone <repository-url>
-cd Space-Based-Infrastructure-Intelligence-Platform
-```
-
-Create a virtual environment:
-
-```bash
-python -m venv .venv
-```
-
-Activate it on Windows PowerShell:
+## Setup (Windows PowerShell)
 
 ```powershell
+git clone https://github.com/Sandy2797/Space-Based-Infrastructure-Intelligence-Platform.git
+cd Space-Based-Infrastructure-Intelligence-Platform
+python -m venv .venv
 .venv\Scripts\Activate.ps1
-```
-
-Install the dependencies:
-
-```bash
+python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-## 5. Database Configuration
+## Database configuration
 
-The application supports PostgreSQL/PostGIS and SQLite.
-
-### PostgreSQL with PostGIS
-
-Create a `.env` file in the project root:
+The backend supports PostgreSQL/PostGIS and SQLite. For PostgreSQL, create a local `.env` file in the repository root:
 
 ```env
 DB_USER=space_user
-DB_PASSWORD=your_local_database_password
+DB_PASSWORD=replace_with_your_local_password
 DB_HOST=127.0.0.1
 DB_PORT=5433
 DB_NAME=space_infra
 ```
 
-Replace the password with your own local database password. Do not commit `.env` to GitHub.
+Use your own local credentials. Never commit `.env`. Ensure the PostgreSQL server is running and PostGIS is installed in the target database.
 
-The application uses these variables to construct its PostgreSQL connection.
+Without `DB_PASSWORD`, the application uses `DATABASE_URL` when set; otherwise it falls back to `sqlite:///./space_infra_dev.sqlite3`.
 
-Make sure PostgreSQL is running and the PostGIS extension is available in the database.
+## Migrations
 
-### SQLite fallback
+Apply migrations to the configured database:
 
-If `DB_PASSWORD` is not set, the application uses `DATABASE_URL` if provided. Otherwise, it uses:
-
-```text
-sqlite:///./space_infra_dev.sqlite3
-```
-
-SQLite is also used by the automated tests through isolated test databases.
-
-## 6. Database Migrations
-
-The project uses Alembic. Migration scripts are stored in `migrations/versions/`.
-
-To apply all migrations:
-
-```bash
+```powershell
 python -m alembic upgrade head
-```
-
-To check the current migration revision:
-
-```bash
 python -m alembic current
-```
-
-To list available migration heads:
-
-```bash
 python -m alembic heads
 ```
 
-Run migrations after configuring the database you intend to use.
+The current migration chain is the source of truth; do not use `Base.metadata.create_all()` as a replacement for production migrations.
 
-## 7. Running the API
+## Run the API
 
-Start the development server:
-
-```bash
+```powershell
 python -m uvicorn app.main:app --reload
 ```
 
-The API will be available at:
+Open:
+- API: http://127.0.0.1:8000
+- Swagger UI: http://127.0.0.1:8000/docs
+- OpenAPI: http://127.0.0.1:8000/openapi.json
+- Health: http://127.0.0.1:8000/health
 
-```text
-http://127.0.0.1:8000
-```
+## Run tests
 
-Useful endpoints:
-
-| Endpoint | Purpose |
-|---|---|
-| `/` | Basic application information |
-| `/health` | Health check |
-| `/docs` | Interactive Swagger API documentation |
-| `/openapi.json` | OpenAPI specification |
-
-## 8. API Modules
-
-The backend currently provides:
-
-- **Monitoring Areas:** Create and retrieve monitoring areas.
-- **Infrastructure Assets:** Register and retrieve assets, with spatial validation and filtering.
-- **Satellite Images:** Register and retrieve satellite image metadata.
-- **Detections:** Create and retrieve detections, filter detection records, and find detections near infrastructure assets.
-
-For endpoint details, request examples, query parameters, and validation rules, see:
-
-[API Reference](docs/API.md)
-
-## 9. Running Tests
-
-Run the automated test suite:
-
-```bash
+```powershell
 python -m pytest -q
 ```
 
-The tests use isolated SQLite databases, so they do not require the local PostgreSQL database to run.
+The reported local baseline before this update was 67 passing tests. Run the suite again after pulling changes and report the actual result from your machine.
 
-## 10. Spatial Data Conventions
+## Current APIs
 
-- The backend uses **EPSG:4326** as its geometry storage CRS.
-- GeoJSON coordinates follow the longitude, latitude order.
-- Incoming geometries are transformed to the storage CRS when necessary.
-- PostgreSQL uses PostGIS spatial operations for supported spatial queries.
+- `/api/v1/monitoring-areas`
+- `/api/v1/infrastructure-assets`
+- `/api/v1/images`
+- `/api/v1/detections`
 
-## 11. Git Collaboration
+See [API reference](docs/API.md) for payloads, validation, filters and limitations. See [Detection integration contract](docs/contracts/detection-v1.md) for the current backend schema snapshot.
 
-Create a feature branch for your work:
+## GIS conventions
 
-```bash
-git checkout -b feature/your-feature-name
+- Geometry storage and API output: EPSG:4326.
+- GeoJSON coordinate order: longitude, latitude.
+- PostgreSQL uses PostGIS geometry; SQLite uses JSON geometry.
+- Raster registration currently extracts metadata from a locally accessible raster. The image API registers metadata and a file reference; it does not upload or provide production object storage.
+
+## Data handling and safety
+
+Do not commit `.env`, credentials, local database files, private datasets, raster files, model checkpoints, or generated outputs. Keep approved imagery and AI datasets in their designated local/approved storage locations. Preserve original imagery and evidence references.
+
+A missing permit record is not proof of illegal activity. Model predictions and verification recommendations require human review.
+
+## Git workflow
+
+```powershell
+git switch -c feature/your-task
+git add <specific-files>
+git commit -m "Describe the change"
+git push -u origin feature/your-task
 ```
 
-After making changes:
+Open a pull request to `main`, request review, and wait for required checks. Avoid force-pushing shared branches. Keep each teammate's implementation on their own feature branch and integrate through reviewed contracts and pull requests.
 
-```bash
-git add .
-git commit -m "Describe your changes"
-git push -u origin feature/your-feature-name
-```
+## Integration dependencies
 
-Submit a Pull Request to merge your feature branch into `main`. Avoid committing `.env`, virtual environments, database files, or Python cache files.
+- AI detection and evidence semantics: Nada
+- NBVE request/response and verification-case behavior: Rana
+- Authentication and authorization: Seif
+- Feedback and audit events: Mohamed
+- Backend APIs, GIS validation, persistence, migrations and integration support: Sandy
+
+Do not invent or silently alter another component's contract. Update the contract documents when the responsible owner confirms a change.
