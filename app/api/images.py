@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.models.monitoring_area import MonitoringAreaDB
 from app.models.satellite_image import SatelliteImageDB
 from app.schemas.satellite_image import (
     SatelliteImageCreate,
@@ -54,6 +55,17 @@ def register_image(
     image: SatelliteImageCreate,
     db: Session = Depends(get_db),
 ):
+    monitoring_area = db.get(
+        MonitoringAreaDB,
+        image.monitoring_area_id,
+    )
+
+    if monitoring_area is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Monitoring area not found",
+        )
+
     image_data = image.model_dump()
 
     # Normalize timestamps to UTC before storing them.
