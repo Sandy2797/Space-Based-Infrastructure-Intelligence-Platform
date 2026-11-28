@@ -127,12 +127,6 @@ def create_detection(
             status_code=422,
             detail="observed_at must include timezone information",
         )
-    # Require an explicit timezone for observation timestamps.
-    if detection.observed_at.tzinfo is None:
-        raise HTTPException(
-            status_code=422,
-            detail="observed_at must include timezone information",
-        )
 
     # Retrieve the monitoring area associated with the images.
     monitoring_area = db.get(
@@ -175,23 +169,23 @@ def create_detection(
         )
 
     record = DetectionDB(
-            id=str(uuid4()),
-            before_image_id=detection.before_image_id,
-            after_image_id=detection.after_image_id,
-            observed_at=detection.observed_at.astimezone(timezone.utc),
-            geometry=stored_geometry,
-            component_id=detection.component_id,
-            origin_category=detection.origin_category,
-            confidence=detection.confidence,
-            change_score=detection.change_score,
-            threshold=detection.threshold,
-            pixel_count=detection.pixel_count,
-            area_m2=detection.area_m2,
-            evidence_quality=detection.evidence_quality,
-            quality_flags=detection.quality_flags,
-            mask_reference=detection.mask_reference,
-            model_version=detection.model_version,
-      )
+        id=str(uuid4()),
+        before_image_id=detection.before_image_id,
+        after_image_id=detection.after_image_id,
+        observed_at=detection.observed_at.astimezone(timezone.utc),
+        geometry=stored_geometry,
+        component_id=detection.component_id,
+        origin_category=detection.origin_category,
+        confidence=detection.confidence,
+        change_score=detection.change_score,
+        threshold=detection.threshold,
+        pixel_count=detection.pixel_count,
+        area_m2=detection.area_m2,
+        evidence_quality=detection.evidence_quality,
+        quality_flags=detection.quality_flags,
+        mask_reference=detection.mask_reference,
+        model_version=detection.model_version,
+    )
 
     db.add(record)
     db.commit()
