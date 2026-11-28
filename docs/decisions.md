@@ -51,7 +51,7 @@ This document records the Backend and GIS technical decisions, their rationale, 
 - Monitoring area and infrastructure asset input geometries are transformed to EPSG:4326.
 - Satellite images retain their source CRS metadata.
 - Detection creation currently requires matching CRS metadata for the before and after images.
-- Detection geometry is currently stored and returned in the backend storage CRS.
+- Detection geometry supports Point, Polygon, and MultiPolygon and is stored and returned in the backend storage CRS.
 
 **Status:** CRS normalization and geometry transformation are implemented. The final detection geometry contract with the AI component requires confirmation.
 
@@ -61,7 +61,7 @@ This document records the Backend and GIS technical decisions, their rationale, 
 **Current geometry types:**
 - Monitoring areas: GEOMETRY, SRID 4326.
 - Infrastructure assets: GEOMETRY, SRID 4326.
-- Detections: POINT, SRID 4326.
+- Detections: mixed geometry (Point, Polygon, MultiPolygon), SRID 4326.
 
 **Status:**
 - PostGIS geometry storage: Implemented.
@@ -117,7 +117,8 @@ This document records the Backend and GIS technical decisions, their rationale, 
 - Detection references to existing before and after images.
 - Different before and after images belonging to the same monitoring area.
 - Chronological image acquisition validation.
-- Confidence values between 0 and 1.
+- Confidence values are nullable; supplied values must be between 0 and 1.
+- Optional AI component metadata (change score, threshold, pixel count, area, evidence quality, quality flags, and mask reference) is retained when supplied.
 - Valid detection origin categories.
 
 **Status:** The listed initial validation and database relationships are implemented. Additional constraints may be required after team contracts are agreed.
