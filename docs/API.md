@@ -1,54 +1,30 @@
-# Space-Based Infrastructure Intelligence Platform
-## Backend API Reference
+# Backend API Reference
 
-**API version:** 0.1.0
-**Base URL:** `http://localhost:8000`
+**API version:** 0.1.0  
+**Base URL:** `http://127.0.0.1:8000`  
 **API prefix:** `/api/v1`
 
-Interactive API documentation is available at `/docs` when the FastAPI application is running. The OpenAPI schema is available at `/openapi.json`.
-
----
+Interactive documentation: `/docs`  
+OpenAPI document: `/openapi.json`
 
 ## 1. General endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/` | Returns project information and running status |
-| GET | `/health` | Checks backend health |
+| GET | `/` | Project status |
+| GET | `/health` | Basic application health response |
 
-### GET `/`
-
-Example response:
-
-```json
-{
-  "project": "Space-Based Infrastructure Intelligence Platform",
-  "status": "running"
-}
-```
-
-### GET `/health`
-
-Example response:
-
-```json
-{
-  "status": "healthy",
-  "service": "backend"
-}
-```
-
----
-
-## 2. Monitoring Areas
+## 2. Monitoring areas
 
 Base path: `/api/v1/monitoring-areas`
 
-### POST `/api/v1/monitoring-areas`
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/` | Create a monitoring area |
+| GET | `/` | List monitoring areas |
+| GET | `/{area_id}` | Retrieve one monitoring area |
 
-Creates a monitoring area.
-
-Request body:
+Create request:
 
 ```json
 {
@@ -56,70 +32,24 @@ Request body:
   "crs": "EPSG:4326",
   "geometry": {
     "type": "Polygon",
-    "coordinates": [[
-      [31.0, 30.0],
-      [31.1, 30.0],
-      [31.1, 30.1],
-      [31.0, 30.1],
-      [31.0, 30.0]
-    ]]
+    "coordinates": [[[31.0, 30.0], [31.1, 30.0], [31.1, 30.1], [31.0, 30.1], [31.0, 30.0]]]
   }
 }
 ```
 
-Requirements:
-- Name must contain 1–120 characters.
-- Geometry must be a valid, non-empty Polygon or MultiPolygon.
-- CRS defaults to `EPSG:4326`.
-- Input geometry is transformed into the backend storage CRS, `EPSG:4326`.
+The geometry must be a valid, non-empty Polygon or MultiPolygon. Input geometry is transformed to the backend storage CRS, EPSG:4326. GeoJSON coordinate order is longitude, latitude.
 
-Success: `201 Created`
-
-Example response:
-
-```json
-{
-  "id": 1,
-  "name": "Cairo Monitoring Zone",
-  "crs": "EPSG:4326",
-  "geometry_crs": "EPSG:4326",
-  "geometry": {
-    "type": "Polygon",
-    "coordinates": [[
-      [31.0, 30.0],
-      [31.1, 30.0],
-      [31.1, 30.1],
-      [31.0, 30.1],
-      [31.0, 30.0]
-    ]]
-  }
-}
-```
-
-### GET `/api/v1/monitoring-areas`
-
-Returns all monitoring areas, ordered by ID.
-
-Success: `200 OK`
-
-### GET `/api/v1/monitoring-areas/{area_id}`
-
-Returns one monitoring area.
-
-Possible errors:
-- `404 Not Found` — monitoring area does not exist.
-
----
-
-## 3. Infrastructure Assets
+## 3. Infrastructure assets
 
 Base path: `/api/v1/infrastructure-assets`
 
-### POST `/api/v1/infrastructure-assets`
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/` | Register an asset |
+| GET | `/` | List assets; supports `monitoring_area_id`, `asset_type`, and `bbox` filters |
+| GET | `/{asset_id}` | Retrieve one asset |
 
-Registers an infrastructure asset inside a monitoring area.
-
-Request body:
+Create request:
 
 ```json
 {
@@ -127,89 +57,25 @@ Request body:
   "asset_name": "Main Building",
   "asset_type": "building",
   "crs": "EPSG:4326",
-  "location": {
-    "type": "Point",
-    "coordinates": [31.05, 30.05]
-  }
+  "location": {"type": "Point", "coordinates": [31.05, 30.05]}
 }
 ```
 
-Requirements:
-- `monitoring_area_id` must be positive and refer to an existing monitoring area.
-- `asset_name` must contain 1–120 characters.
-- `asset_type` must contain 1–80 characters.
-- CRS defaults to `EPSG:4326`.
-- Supported geometry types: Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon.
-- Geometry must be valid, non-empty, and contain finite coordinates.
-- The transformed asset geometry must be covered by its monitoring area.
+Supported geometry types: Point, MultiPoint, LineString, MultiLineString, Polygon, and MultiPolygon. Geometry is validated, transformed to EPSG:4326, and must be completely covered by the selected monitoring area. The request CRS is used for transformation; the current asset model stores the normalized geometry, not a separate original-source-CRS field.
 
-Success: `201 Created`
+The `bbox` query format is `west,south,east,north` in EPSG:4326. Bounds must be finite and geographically valid.
 
-Example response:
-
-```json
-{
-  "id": 1,
-  "monitoring_area_id": 1,
-  "asset_name": "Main Building",
-  "asset_type": "building",
-  "location": {
-    "type": "Point",
-    "coordinates": [31.05, 30.05]
-  },
-  "location_crs": "EPSG:4326"
-}
-```
-
-Possible errors:
-- `404 Not Found` — monitoring area does not exist.
-- `422 Unprocessable Entity` — invalid geometry, CRS, or asset outside its monitoring area.
-
-### GET `/api/v1/infrastructure-assets`
-
-Returns infrastructure assets with optional filters.
-
-Query parameters:
-
-| Parameter | Type | Description |
-|---|---|---|
-| `monitoring_area_id` | Integer | Filter by monitoring area |
-| `asset_type` | String | Filter by asset type, case-insensitive |
-| `bbox` | String | Geographic bounding box: `west,south,east,north` |
-
-Example:
-
-```http
-GET /api/v1/infrastructure-assets?monitoring_area_id=1&asset_type=building&bbox=31.0,30.0,31.1,30.1
-```
-
-Bounding-box requirements:
-- Exactly four finite coordinates.
-- Longitude range: -180 to 180.
-- Latitude range: -90 to 90.
-- West must be less than east.
-- South must be less than north.
-
-Success: `200 OK`
-
-### GET `/api/v1/infrastructure-assets/{asset_id}`
-
-Returns one infrastructure asset.
-
-Possible errors:
-- `404 Not Found` — infrastructure asset does not exist.
-
----
-
-## 4. Satellite Images
+## 4. Satellite images
 
 Base path: `/api/v1/images`
 
-### POST `/api/v1/images`
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/` | Register image metadata |
+| GET | `/` | List registered images |
+| GET | `/{image_id}` | Retrieve one image |
 
-Registers satellite image metadata.
-
-Request body:
+Create request:
 
 ```json
 {
@@ -224,189 +90,81 @@ Request body:
 }
 ```
 
-Requirements:
-- `monitoring_area_id` must be positive. The database enforces its relationship with the monitoring area.
-- Provider, file reference, and CRS must not be empty.
-- Acquisition timestamp must include timezone information.
-- Width, height, and band count must be positive integers.
-- Acquisition timestamps are normalized to UTC before storage.
+The monitoring area must exist. Provider, file reference, and CRS must be non-empty. Acquisition time must be timezone-aware and is normalized to UTC. Width, height, and band count must be positive.
 
-Success: `201 Created`
-
-Example response:
-
-```json
-{
-  "id": 1,
-  "monitoring_area_id": 1,
-  "provider": "synthetic_test_data",
-  "file_reference": "samples/image_before.tif",
-  "acquired_at": "2026-11-01T10:00:00Z",
-  "crs": "EPSG:4326",
-  "width": 1024,
-  "height": 1024,
-  "band_count": 3
-}
-```
-
-### GET `/api/v1/images`
-
-Returns all registered satellite images, ordered by ID.
-
-Success: `200 OK`
-
-### GET `/api/v1/images/{image_id}`
-
-Returns one satellite image.
-
-Possible errors:
-- `404 Not Found` — satellite image does not exist.
-
----
+**Important:** This endpoint registers metadata and a file reference. It does not upload a raster. Rasterio metadata extraction is available through the backend service `prepare_image_registration(file_path, monitoring_area_id, provider, acquired_at)`; callers must supply a locally accessible raster path to that service.
 
 ## 5. Detections
 
 Base path: `/api/v1/detections`
 
-### POST `/api/v1/detections`
-
-Creates and persists a detection.
-
-Request body:
-
-```json
-{
-  "before_image_id": 1,
-  "after_image_id": 2,
-  "observed_at": "2026-11-20T10:00:00Z",
-  "geometry": {
-    "type": "Point",
-    "coordinates": [31.2, 30.2]
-  },
-  "origin_category": "human_made",
-  "confidence": 0.87,
-  "model_version": "mock-v0"
-}
-```
-
-Requirements:
-- Before and after image IDs must refer to existing images.
-- The two images must be different.
-- Both images must belong to the same monitoring area.
-- The before-image acquisition time must be earlier than the after-image acquisition time.
-- Both images must have the same CRS string.
-- `observed_at` must include timezone information.
-- Detection geometry must be a GeoJSON Point with exactly two coordinates.
-- `origin_category` must be `human_made`, `natural`, or `uncertain`.
-- Confidence must be between 0 and 1.
-- Model version must not be empty.
-
-Success: `201 Created`
-
-Example response:
-
-```json
-{
-  "id": "generated-detection-uuid",
-  "before_image_id": 1,
-  "after_image_id": 2,
-  "observed_at": "2026-11-20T10:00:00Z",
-  "geometry": {
-    "type": "Point",
-    "coordinates": [31.2, 30.2]
-  },
-  "origin_category": "human_made",
-  "confidence": 0.87,
-  "model_version": "mock-v0"
-}
-```
-
-Possible errors:
-- `404 Not Found` — before-image or after-image does not exist.
-- `422 Unprocessable Entity` — invalid image pair, timestamp, geometry, category, or confidence.
-
-### GET `/api/v1/detections`
-
-Returns detections with optional filters.
-
-Query parameters:
-
-| Parameter | Type | Description |
+| Method | Endpoint | Description |
 |---|---|---|
-| `monitoring_area_id` | Integer | Filter by monitoring area |
-| `origin_category` | String | `human_made`, `natural`, or `uncertain` |
-| `min_confidence` | Float | Minimum confidence, from 0 to 1 |
-| `max_confidence` | Float | Maximum confidence, from 0 to 1 |
-| `start_date` | Date | Inclusive start date, interpreted as UTC |
-| `end_date` | Date | Inclusive end date, interpreted as UTC |
+| POST | `/` | Validate and persist a detection |
+| GET | `/` | List detections with filters |
+| GET | `/near-asset/{asset_id}` | Find detections within a radius of an asset |
 
-Example:
+Current create request shape:
 
-```http
-GET /api/v1/detections?monitoring_area_id=1&origin_category=human_made&min_confidence=0.7&max_confidence=1&start_date=2026-11-01&end_date=2026-11-30
+```json
+{
+  "before_image_id": 1,
+  "after_image_id": 2,
+  "observed_at": "2026-11-20T10:00:00Z",
+  "geometry": {"type": "Polygon", "coordinates": [[[31.02, 30.02], [31.03, 30.02], [31.03, 30.03], [31.02, 30.03], [31.02, 30.02]]]},
+  "component_id": 8,
+  "origin_category": "uncertain",
+  "confidence": null,
+  "change_score": 0.82,
+  "threshold": {"value": 0.4},
+  "pixel_count": 120,
+  "area_m2": 12000,
+  "evidence_quality": {"image_quality": "acceptable", "alignment": "checked"},
+  "quality_flags": [],
+  "mask_reference": "approved-storage-reference",
+  "model_version": "image-differencing-baseline-v1.0.0"
+}
 ```
 
-The minimum confidence cannot exceed the maximum confidence. The start date cannot be after the end date.
+Geometry supports Point, Polygon, and MultiPolygon. The before and after image IDs must be different, exist, belong to the same monitoring area, have chronologically ordered acquisition times, and have matching CRS strings. `observed_at` must include timezone information. Detection geometry is transformed to EPSG:4326 and must be covered by the monitoring-area geometry.
 
-Success: `200 OK`
+The category is `human_made`, `natural`, or `uncertain`. Confidence is optional and, when supplied, must be between 0 and 1. The API retains optional component, change-score, threshold, pixel-count, area, evidence-quality, quality-flag, and mask-reference metadata. Model version is required.
 
-### GET `/api/v1/detections/near-asset/{asset_id}`
+List filters:
+- `monitoring_area_id`
+- `origin_category`
+- `min_confidence` and `max_confidence` (each from 0 to 1; minimum cannot exceed maximum)
+- `start_date` and `end_date` (UTC calendar dates; both endpoints inclusive)
 
-Returns detections within a specified distance of an infrastructure asset, restricted to the asset's monitoring area.
+Nearby query:
+`GET /api/v1/detections/near-asset/1?radius_m=500`
 
-Query parameter:
+The radius must be greater than zero and at most 100,000 metres. PostgreSQL uses PostGIS geography distance; SQLite tests use a local metric projection. Results are restricted to the asset's monitoring area.
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `radius_m` | Float | 500 | Search radius in metres; must be greater than 0 and no more than 100,000 |
-
-Example:
-
-```http
-GET /api/v1/detections/near-asset/1?radius_m=500
-```
-
-PostgreSQL uses PostGIS `ST_DWithin` with geography casts for metre-based distance calculations. SQLite uses a local metric projection for test calculations.
-
-Possible errors:
-- `404 Not Found` — infrastructure asset does not exist.
-- `422 Unprocessable Entity` — invalid radius.
-
-Success: `200 OK`
-
----
-
-## 6. Spatial and CRS conventions
-
-- Backend geometry storage CRS: `EPSG:4326`.
-- GeoJSON coordinates use longitude, latitude order.
-- Monitoring area geometry is Polygon or MultiPolygon.
-- Detection geometry is Point.
-- Infrastructure asset geometry accepts the supported GeoJSON geometry types documented above.
-- Monitoring area and infrastructure asset creation accept an input CRS and transform geometry into the storage CRS.
-- Monitoring area responses include `geometry_crs`.
-- Infrastructure asset responses include `location_crs`.
-- Detection responses return stored geometry in the backend storage CRS.
-
----
-
-## 7. General response and error conventions
+## 6. Responses and errors
 
 | Status | Meaning |
 |---|---|
-| `200 OK` | Successful retrieval |
-| `201 Created` | Resource created |
-| `404 Not Found` | Requested resource or referenced record not found |
-| `422 Unprocessable Entity` | Invalid request data or failed business validation |
+| 200 | Successful retrieval |
+| 201 | Resource created |
+| 404 | Requested resource or referenced record does not exist |
+| 422 | Request validation or business-rule validation failed |
 
-FastAPI/Pydantic request validation errors also use `422`.
+FastAPI/Pydantic request validation errors also return 422.
 
----
+## 7. Spatial and evidence conventions
 
-## 8. Current API limitations
+- Geometry storage CRS: EPSG:4326.
+- GeoJSON positions use longitude, latitude.
+- PostgreSQL uses PostGIS geometry; SQLite uses JSON geometry for tests/development.
+- Original raster files are not modified by metadata extraction.
+- A missing confidence value remains null; it must not be replaced with an invented score.
+- A missing permit record must not be interpreted as proof of illegal activity.
+- Predictions and recommendations are decision support and require authorized human review.
 
-The current backend exposes creation and retrieval operations for these resources. Update and delete endpoints are not currently implemented.
+## 8. Current limitations
 
-Satellite image registration stores metadata and a file reference; it does not itself upload or process the referenced raster file.
-
-Detection creation currently accepts a Point geometry and the existing detection fields. Additional AI evidence, uncertainty, and forecasting fields should be added only after the team agrees on the corresponding integration contract.
+- Update and delete endpoints are not implemented.
+- Image metadata registration is separate from raster upload and production object storage.
+- Authentication/authorization, permit records, NBVE verification cases, dashboard integration, feedback, and audit integration depend on the relevant team contracts.
+- Pagination is not currently implemented on collection endpoints.
