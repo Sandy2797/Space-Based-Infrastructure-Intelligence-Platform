@@ -1,0 +1,592 @@
+
+
+# Data Dictionary
+
+
+
+## Project
+
+Space-Based Infrastructure Intelligence Platform
+
+
+
+## 1. Purpose
+
+
+
+This document defines the database structure, fields, data types, constraints, relationships, and validation rules used by the Backend and GIS components.
+
+
+
+It describes the currently implemented SQLAlchemy database models and their corresponding Pydantic API schemas.
+
+
+
+Implemented database entities are distinguished from planned entities to ensure that the documentation accurately reflects the current system.
+
+
+
+## 2. Database Configuration
+
+
+
+| Property | Current Configuration |
+
+|---|---|
+
+| ORM | SQLAlchemy |
+
+| Database | PostgreSQL with PostGIS when configured; SQLite fallback for development and tests |
+
+| Default SQLite database file | space_infra_dev.sqlite3 |
+
+| Production deployment | Pending |
+
+| Spatial extension | PostGIS (implemented and tested locally) |
+
+| API validation | Pydantic |
+
+| GIS geometry processing | Shapely |
+
+| Database session | SessionLocal |
+
+| Declarative base | Base |
+
+
+
+PostgreSQL with PostGIS has been implemented and tested locally. Production deployment configuration remains pending.
+
+
+The backend supports PostgreSQL with native PostGIS geometry columns using SRID 4326. SQLite remains available for local development and automated tests, using JSON geometry storage. The API exchanges geographic data using GeoJSON.
+
+
+## 3. Implemented Database Entities
+
+
+
+### 3.1 MonitoringArea
+
+
+
+**Table name:** `monitoring_areas`
+
+
+
+**SQLAlchemy model:** `MonitoringAreaDB`
+
+
+
+**Purpose:** Stores the geographic boundaries of areas selected for infrastructure monitoring.
+
+
+
+| Field | Database Type | Constraint | Description |
+
+|---|---|---|---|
+
+| id | Integer | Primary Key, Auto Increment | Unique monitoring area identifier |
+
+| name | VARCHAR(120) | NOT NULL | Monitoring area name |
+
+| crs | VARCHAR(50) | NOT NULL | Coordinate Reference System |
+
+| geometry | PostGIS GEOMETRY (SRID 4326); SQLite JSON | NOT NULL | Geographic monitoring area boundary |
+
+
+
+**API validation rules:**
+
+
+
+- Name must contain at least one character.
+
+- Name cannot exceed 120 characters.
+
+- CRS is restricted to EPSG:4326.
+
+- Geometry must be a Polygon or MultiPolygon.
+
+- Geometry must not be empty.
+
+- Geometry must be valid according to Shapely.
+
+- Longitude must be between -180 and 180.
+
+- Latitude must be between -90 and 90.
+
+- GeoJSON coordinate order is longitude, latitude.
+
+
+
+**API schemas:**
+
+
+
+- MonitoringAreaCreate
+
+- MonitoringAreaResponse
+
+
+
+**Implemented endpoints:**
+
+
+
+- POST /api/v1/monitoring-areas
+
+- GET /api/v1/monitoring-areas
+
+- GET /api/v1/monitoring-areas/{area_id}
+
+
+
+### 3.2 SatelliteImage
+
+
+
+**Table name:** `satellite_images`
+
+
+
+**SQLAlchemy model:** `SatelliteImageDB`
+
+
+
+**Purpose:** Stores metadata and file references for satellite images used in infrastructure monitoring.
+
+
+
+| Field | Database Type | Constraint | Description |
+
+|---|---|---|---|
+
+| id | Integer | Primary Key, Auto Increment | Unique satellite image identifier |
+
+| monitoring_area_id | Integer | NOT NULL | Identifier of the associated monitoring area |
+
+| provider | VARCHAR(120) | NOT NULL | Satellite imagery provider |
+
+| file_reference | VARCHAR(512) | NOT NULL | Location or reference of the raster file |
+
+| acquired_at | DateTime(timezone=True) | NOT NULL | Image acquisition timestamp |
+
+| crs | VARCHAR(120) | NOT NULL | Image coordinate reference system |
+
+| width | Integer | NOT NULL | Raster image width in pixels |
+
+| height | Integer | NOT NULL | Raster image height in pixels |
+
+| band_count | Integer | NOT NULL | Number of raster bands |
+
+
+
+**API validation rules:**
+
+
+
+- monitoring_area_id must be greater than zero.
+
+- Provider must not be empty.
+
+- File reference must not be empty.
+
+- Acquisition timestamp must be timezone-aware.
+
+- CRS must not be empty.
+
+- Width, height, and band count must be positive integers.
+
+
+
+**API schemas:**
+
+
+
+- SatelliteImageCreate
+
+- SatelliteImageResponse
+
+
+
+**Foreign Key relationship:**
+
+- `monitoring_area_id` references `monitoring_areas.id`.
+- The foreign key uses `ON DELETE RESTRICT`.
+- An index is implemented on `monitoring_area_id`.
+
+### 3.3 Detection
+
+
+
+**Table name:** `detections`
+
+
+
+**SQLAlchemy model:** `DetectionDB`
+
+
+
+**Purpose:** Stores detected geographic changes and their associated satellite image references.
+
+
+
+| Field | Database Type | Constraint | Description |
+
+|---|---|---|---|
+
+| id | VARCHAR(36) | Primary Key | Unique detection identifier |
+
+| before_image_id | Integer | Foreign Key, NOT NULL, Indexed | Reference to the earlier satellite image |
+
+| after_image_id | Integer | Foreign Key, NOT NULL, Indexed | Reference to the later satellite image |
+
+| observed_at | DateTime(timezone=True) | NOT NULL | Detection observation timestamp |
+
+| geometry | PostGIS GEOMETRY (SRID 4326); SQLite JSON | NOT NULL | Detection geometry: Point, Polygon, or MultiPolygon |
+
+| origin_category | VARCHAR(30) | NOT NULL | Classification of the detected change |
+
+| component_id | Integer | NULL allowed | Optional AI component identifier |\n| confidence | Float | NULL allowed; CHECK when supplied, 0 to 1 | Confidence score; null is preserved when unavailable |\n| change_score | Float | NULL allowed | Optional change score |\n| threshold | JSON | NULL allowed | Optional threshold metadata |\n| pixel_count | Integer | NULL allowed | Optional pixel count |\n| area_m2 | Float | NULL allowed | Optional detected area in square metres |\n| evidence_quality | JSON | NULL allowed | Optional structured evidence-quality metadata |\n| quality_flags | JSON | NULL allowed | Optional quality flags |\n| mask_reference | VARCHAR(512) | NULL allowed | Optional external mask reference |
+
+| model_version | VARCHAR(120) | NOT NULL | Version identifier of the model producing the detection |
+
+
+
+**Foreign Key relationships:**
+
+
+
+- before_image_id references satellite_images.id.
+
+- after_image_id references satellite_images.id.
+
+
+
+**Allowed origin categories:**
+
+
+
+- human_made
+
+- natural
+
+- uncertain
+
+
+
+**API validation rules:**
+
+
+
+- Both image identifiers must be positive.
+
+- Geometry must use Point, Polygon, or MultiPolygon type.
+
+- Coordinates are represented as longitude and latitude.
+
+- Origin category must be one of the three allowed values.
+
+- Confidence must be between 0 and 1.
+
+- Model version must not be empty.
+
+
+
+**Additional detection validation in the API:**
+
+
+
+- Before and after images must be different.
+
+- Both referenced images must exist.
+
+- Both images must belong to the same monitoring area.
+
+- The before image must have an earlier acquisition timestamp.
+
+- Both images must use the same CRS.
+
+
+
+**Database constraint:**
+
+
+
+The confidence field has a database CHECK constraint:
+
+
+
+confidence >= 0 AND confidence <= 1
+
+
+
+**API schemas:**
+
+
+
+- DetectionCreate
+
+- DetectionResponse
+
+
+
+### 3.4 InfrastructureAsset
+
+**Table name:** `infrastructure_assets`
+
+**SQLAlchemy model:** `InfrastructureAssetDB`
+
+**Purpose:** Stores infrastructure assets associated with monitoring areas, including their names, types, and geographic locations.
+
+| Field | Database Type | Constraint | Description |
+|---|---|---|---|
+| id | Integer | Primary Key, Auto Increment | Unique infrastructure asset identifier |
+| monitoring_area_id | Integer | Foreign Key, NOT NULL, Indexed | Associated monitoring area |
+| asset_name | VARCHAR(120) | NOT NULL | Infrastructure asset name |
+| asset_type | VARCHAR(80) | NOT NULL | Infrastructure category |
+| location | PostGIS GEOMETRY (SRID 4326); SQLite JSON | NOT NULL | Infrastructure asset geographic location |
+
+**Foreign Key relationship:**
+
+- monitoring_area_id references monitoring_areas.id.
+- The foreign key uses ON DELETE RESTRICT.
+
+**Supported geometry types:**
+
+- Point
+- MultiPoint
+- LineString
+- MultiLineString
+- Polygon
+- MultiPolygon
+
+**API validation rules:**
+
+- Monitoring area identifier must be positive.
+- The referenced monitoring area must exist.
+- Asset name must not be empty and cannot exceed 120 characters.
+- Asset type must not be empty and cannot exceed 80 characters.
+- Geometry must use a supported GeoJSON type.
+- Geometry must not be empty or invalid.
+- Longitude must be between -180 and 180.
+- Latitude must be between -90 and 90.
+- The complete asset geometry must be covered by its monitoring area.
+- Asset coordinates must use a coordinate system compatible with the associated monitoring area.
+
+**API schemas:**
+
+- InfrastructureAssetCreate
+- InfrastructureAssetResponse
+
+**Implemented endpoints:**
+
+- POST /api/v1/infrastructure-assets
+- GET /api/v1/infrastructure-assets
+- GET /api/v1/infrastructure-assets/{asset_id}
+
+**GIS validation:**
+
+Shapely is used to validate geometry and check whether the complete asset geometry is covered by the associated monitoring area using the covers() operation.
+
+
+
+## 4. Entity Relationships
+
+
+
+### Current Database Relationships
+
+
+
+erDiagram
+    MONITORING_AREA ||--o{ SATELLITE_IMAGE : contains
+    MONITORING_AREA ||--o{ INFRASTRUCTURE_ASSET : contains
+    SATELLITE_IMAGE ||--o{ DETECTION : before_image
+    SATELLITE_IMAGE ||--o{ DETECTION : after_image
+
+    MONITORING_AREA {
+        int id PK
+        string name
+        string crs
+        geometry geometry
+    }
+
+    SATELLITE_IMAGE {
+        int id PK
+        int monitoring_area_id FK
+        string provider
+        string file_reference
+        datetime acquired_at
+        string crs
+        int width
+        int height
+        int band_count
+    }
+
+    INFRASTRUCTURE_ASSET {
+        int id PK
+        int monitoring_area_id FK
+        string asset_name
+        string asset_type
+        geometry location
+    }
+
+    DETECTION {
+        string id PK
+        int before_image_id FK
+        int after_image_id FK
+        datetime observed_at
+        geometry geometry
+        string origin_category
+        float confidence
+        string model_version
+    }
+
+
+
+**Important:** The diagram shows the implemented foreign key relationships, including the monitoring-area foreign keys for satellite images and infrastructure assets. Both use `ON DELETE RESTRICT`.
+
+
+
+## 5. Geographic Data Standards
+
+
+
+| Property | Standard |
+
+|---|---|
+
+| Monitoring area geometry | Polygon or MultiPolygon |
+
+| Detection geometry | Point, Polygon, or MultiPolygon |
+
+| Monitoring area CRS | EPSG:4326 |
+
+| GeoJSON coordinate order | Longitude, Latitude |
+
+| Geometry storage | PostgreSQL: PostGIS geometry (SRID 4326); SQLite: JSON |
+
+| Geometry validation | Shapely |
+
+| Spatial storage status | Implemented for PostgreSQL |
+
+
+
+The current system uses EPSG:4326 for monitoring area boundaries.
+
+
+
+Satellite images retain their own CRS metadata. Detection creation currently requires before and after images to have matching CRS information.
+
+
+
+Native PostGIS geometry storage is implemented for PostgreSQL using SRID 4326. SQLite continues to use JSON geometry storage.
+
+
+
+## 6. Data Integrity Rules
+
+
+
+1. Every database entity must have a unique identifier.
+
+2. Required database fields must not contain NULL values.
+
+3. Satellite image dimensions must be positive.
+
+4. Monitoring area boundaries must be valid.
+
+5. Detection confidence must remain between 0 and 1.
+
+6. Detections must reference existing satellite images.
+
+7. Before and after images must represent different acquisition times.
+
+8. Original satellite imagery must remain unchanged.
+
+9. Restricted information must not be committed to GitHub.
+
+10. Permit information must only be accessed through authorized sources.
+
+
+
+## 7. Planned Database Entities
+
+
+
+The following entities are part of the overall project architecture but are not implemented in the models reviewed in this document.
+
+
+
+| Entity | Intended Purpose | Responsible Member / Integration |
+
+|---|---|---|
+
+
+| PermitRecord | Stores authorized permit information | Sandy / authorized data source |
+
+| Forecast | Stores predicted future changes | Nada |
+
+| VerificationCase | Stores verification cases and recommendations | Rana / Sandy backend integration |
+
+| User | Stores user account information | Sandy / Seif integration |
+
+| Feedback | Stores reviewer feedback | Mohamed |
+
+| AuditLog | Records important system activities | Mohamed / Seif integration |
+
+
+
+Their final schemas and relationships must be agreed upon before implementation.
+
+
+
+## 8. Implementation Status
+
+
+
+| Component | Status |
+
+|---|---|
+
+| MonitoringArea model | Implemented |
+
+| SatelliteImage model | Implemented |
+
+| Detection model | Implemented |
+
+| Monitoring area API schemas | Implemented |
+
+| Satellite image API schemas | Implemented |
+
+| Detection API schemas | Implemented |
+
+| Detection foreign keys | Implemented |
+
+| Monitoring area foreign key enforcement | Implemented |
+
+| InfrastructureAsset model | Implemented |
+| InfrastructureAsset API schemas | Implemented |
+| InfrastructureAsset API endpoints | Implemented |
+| InfrastructureAsset foreign key | Implemented |
+| InfrastructureAsset GIS geometry validation | Implemented |
+| PostgreSQL integration | Implemented and tested locally |
+
+| PostGIS geometry storage | Implemented |
+
+| Spatial indexes | Implemented |
+
+| Remaining team database entities | Pending integration |
+
+
+
+## 9. Future Improvements
+
+The following improvements are planned:
+
+- Complete production PostgreSQL/PostGIS deployment configuration.
+- Integrate production raster file storage and retrieval.
+- Integrate AI detection outputs with the backend detection API.
+- Integrate permit records, verification cases, and NBVE workflows.
+- Implement authentication and role-based access control.
+- Integrate feedback, audit logging, and evaluation workflows.
