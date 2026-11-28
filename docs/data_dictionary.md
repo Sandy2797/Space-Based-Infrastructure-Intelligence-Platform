@@ -242,11 +242,11 @@ The backend supports PostgreSQL with native PostGIS geometry columns using SRID 
 
 | observed_at | DateTime(timezone=True) | NOT NULL | Detection observation timestamp |
 
-| geometry | PostGIS POINT (SRID 4326); SQLite JSON | NOT NULL | Geographic detection location |
+| geometry | PostGIS GEOMETRY (SRID 4326); SQLite JSON | NOT NULL | Detection geometry: Point, Polygon, or MultiPolygon |
 
 | origin_category | VARCHAR(30) | NOT NULL | Classification of the detected change |
 
-| confidence | Float | NOT NULL, CHECK 0 to 1 | Confidence score |
+| component_id | Integer | NULL allowed | Optional AI component identifier |\n| confidence | Float | NULL allowed; CHECK when supplied, 0 to 1 | Confidence score; null is preserved when unavailable |\n| change_score | Float | NULL allowed | Optional change score |\n| threshold | JSON | NULL allowed | Optional threshold metadata |\n| pixel_count | Integer | NULL allowed | Optional pixel count |\n| area_m2 | Float | NULL allowed | Optional detected area in square metres |\n| evidence_quality | JSON | NULL allowed | Optional structured evidence-quality metadata |\n| quality_flags | JSON | NULL allowed | Optional quality flags |\n| mask_reference | VARCHAR(512) | NULL allowed | Optional external mask reference |
 
 | model_version | VARCHAR(120) | NOT NULL | Version identifier of the model producing the detection |
 
@@ -280,7 +280,7 @@ The backend supports PostgreSQL with native PostGIS geometry columns using SRID 
 
 - Both image identifiers must be positive.
 
-- Geometry must use Point type.
+- Geometry must use Point, Polygon, or MultiPolygon type.
 
 - Coordinates are represented as longitude and latitude.
 
@@ -458,7 +458,7 @@ erDiagram
 
 | Monitoring area geometry | Polygon or MultiPolygon |
 
-| Detection geometry | Point |
+| Detection geometry | Point, Polygon, or MultiPolygon |
 
 | Monitoring area CRS | EPSG:4326 |
 
